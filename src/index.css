@@ -353,8 +353,6 @@ body {
 .period-controls { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 11px 16px; margin-top: 16px; }
 .period-select-label { display: grid; gap: 5px; color: var(--text-faint); font-size: 10px; font-weight: 600; }
 .period-select-label .theme-select { min-width: 150px; }
-.period-current-toggle { display: inline-flex; min-height: 38px; align-items: center; gap: 8px; color: var(--text-dim); font-size: 12px; }
-.period-current-toggle input { width: 15px; height: 15px; accent-color: var(--brand); }
 .header-actions { display: flex; align-items: center; gap: 10px; }
 .spending-summary { display: grid; gap: 14px; margin-bottom: 28px; }
 .metric-grid { display: grid; gap: 14px; }

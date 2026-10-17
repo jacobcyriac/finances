@@ -12,7 +12,7 @@ import { GroupStackedBars } from './components/charts/GroupStackedBars';
 import { ExpenseTransactionsTable } from './components/ExpenseTransactionsTable';
 import { clearSessionCredentials, loadSessionCredentials, saveSessionCredentials } from './lib/session';
 import { loadCachedSnapshot, saveCachedSnapshot } from './snapshot/cache';
-import { rollingSpending, type SpendingRangeOptions } from './analysis/rolling-spending';
+import { availableSpendingRanges, rollingSpending } from './analysis/rolling-spending';
 import { formatMoney, formatCompact } from './lib/money';
 import type { ConnectRequest, CurrencyFormat } from './types';
 
@@ -68,13 +68,26 @@ function MetricCard({ label, value, detail, color }: { label: string; value: str
 
 function SpendingDashboard({ snapshot, onDisconnect }: { snapshot: NonNullable<Awaited<ReturnType<typeof getSnapshot>>>; onDisconnect: () => void }) {
   const [spendingView, setSpendingView] = useState<'treemap' | 'bars'>('treemap');
-  const [rangeMonths, setRangeMonths] = useState<1 | 3 | 6 | 12 | 24>(12);
-  const [excludeCurrentMonth, setExcludeCurrentMonth] = useState(true);
-  const periodOptions: SpendingRangeOptions = { months: rangeMonths, includeCurrentMonth: !excludeCurrentMonth };
-  const period = useMemo(() => rollingSpending(snapshot, new Date(), periodOptions), [snapshot, rangeMonths, excludeCurrentMonth]);
+  const [rangeValue, setRangeValue] = useState('rolling-12');
+  const rangeOptions = useMemo(() => availableSpendingRanges(snapshot), [snapshot]);
+  const defaultRange = rangeOptions.find((option) => option.value === 'rolling-12')
+    ?? rangeOptions.filter((option) => option.kind === 'rolling').at(-1)
+    ?? rangeOptions[0];
+  const range = rangeOptions.find((option) => option.value === rangeValue) ?? defaultRange;
+  const rollingRanges = rangeOptions.filter((option) => option.kind === 'rolling');
+  const yearRanges = rangeOptions.filter((option) => option.kind === 'year');
+  const period = useMemo(() => rollingSpending(snapshot, new Date(), {
+    months: range.months,
+    startMonth: range.startMonth,
+    endMonth: range.endMonth,
+    includeCurrentMonth: range.kind === 'month',
+  }), [snapshot, range]);
   const currency = snapshot.currency;
   const fmt = (value: number) => formatMoney(value, currency);
   const fmtWhole = (value: number) => formatMoney(Math.round(value / 100) * 100, currency).replace(/\.00(?=\D|$)/, '');
+  const spendingPeriodDetail = range.kind === 'month' ? 'this month'
+    : range.kind === 'year' ? range.label
+      : range.months === 1 ? '/month' : range.months === 12 ? '/year' : `/${range.months} months`;
   const disconnectMutation = useMutation({ mutationFn: disconnect, onSuccess: onDisconnect });
   const data = period.months.map((month) => ({
     ...month,
@@ -91,20 +104,20 @@ function SpendingDashboard({ snapshot, onDisconnect }: { snapshot: NonNullable<A
       <div>
         <div className="eyebrow"><span className="status-dot" /> Actual Budget · Spending</div>
         <h1>{snapshot.budgetName}</h1>
-        <p className="subtitle">Net expenses from {monthName(period.startMonth, { month: 'short', year: 'numeric' })} through {monthName(period.endMonth, { month: 'short', year: 'numeric' })}.</p>
+        <p className="subtitle">{period.startMonth === period.endMonth
+          ? `Net expenses for ${monthName(period.startMonth, { month: 'long', year: 'numeric' })}.`
+          : `Net expenses from ${monthName(period.startMonth, { month: 'short', year: 'numeric' })} through ${monthName(period.endMonth, { month: 'short', year: 'numeric' })}.`}</p>
         <div className="period-controls" aria-label="Spending date range">
           <label className="period-select-label"><span>Period</span>
-            <select className="theme-select" value={rangeMonths} onChange={(event) => setRangeMonths(Number(event.target.value) as 1 | 3 | 6 | 12 | 24)}>
-              <option value={1}>Last month</option>
-              <option value={3}>Last 3 months</option>
-              <option value={6}>Last 6 months</option>
-              <option value={12}>Last 12 months</option>
-              <option value={24}>Last 24 months</option>
+            <select className="theme-select" value={range.value} onChange={(event) => setRangeValue(event.target.value)}>
+              <option value="this-month">This month</option>
+              {rollingRanges.length > 0 && <optgroup label="Rolling periods">
+                {rollingRanges.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </optgroup>}
+              {yearRanges.length > 0 && <optgroup label="Calendar years">
+                {yearRanges.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </optgroup>}
             </select>
-          </label>
-          <label className="period-current-toggle">
-            <input type="checkbox" checked={excludeCurrentMonth} onChange={(event) => setExcludeCurrentMonth(event.target.checked)} />
-            <span>Exclude current month</span>
           </label>
         </div>
       </div>
@@ -114,9 +127,9 @@ function SpendingDashboard({ snapshot, onDisconnect }: { snapshot: NonNullable<A
       </div>
     </header>
 
-    <section className="spending-summary" aria-label="12-month spending summary">
+    <section className="spending-summary" aria-label={`${range.label} spending summary`}>
       <div className="metric-grid metric-grid-overview">
-        <MetricCard label="Total spending" value={fmtWhole(period.totals.total)} detail="/year" />
+        <MetricCard label="Total spending" value={fmtWhole(period.totals.total)} detail={spendingPeriodDetail} />
         <MetricCard label="Monthly average" value={fmtWhole(period.totals.average)} detail="/month" />
       </div>
     </section>

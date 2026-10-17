@@ -34,8 +34,59 @@ export interface RollingSpending {
 }
 
 export interface SpendingRangeOptions {
+  months?: number;
+  includeCurrentMonth?: boolean;
+  startMonth?: string;
+  endMonth?: string;
+}
+
+export interface SpendingRangePreset {
+  value: string;
+  label: string;
+  kind: 'rolling' | 'month' | 'year';
+  startMonth: string;
+  endMonth: string;
   months: number;
-  includeCurrentMonth: boolean;
+}
+
+function monthIndex(month: string): number {
+  const [year, number] = month.split('-').map(Number);
+  return year * 12 + number - 1;
+}
+
+/** Presets are limited to completed month history present in the snapshot. */
+export function availableSpendingRanges(snap: Snapshot, now = new Date()): SpendingRangePreset[] {
+  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const lastCompletedMonth = addMonths(currentMonth, -1);
+  const dataMonths = [...new Set(snap.transactions.map((tx) => tx.date.slice(0, 7)).filter((month) => /^\d{4}-(0[1-9]|1[0-2])$/.test(month)))].sort();
+  const earliestMonth = dataMonths[0];
+  const completedHistory = earliestMonth ? Math.max(0, monthIndex(lastCompletedMonth) - monthIndex(earliestMonth) + 1) : 0;
+  const presets: SpendingRangePreset[] = [1, 3, 6, 12, 24, 36, 48]
+    .filter((months) => months <= completedHistory)
+    .map((months) => {
+      const endMonth = lastCompletedMonth;
+      const startMonth = addMonths(endMonth, -(months - 1));
+      return { value: `rolling-${months}`, label: `Last ${months} ${months === 1 ? 'month' : 'months'}`, kind: 'rolling', startMonth, endMonth, months };
+    });
+
+  presets.push({ value: 'this-month', label: 'This month', kind: 'month', startMonth: currentMonth, endMonth: currentMonth, months: 1 });
+  const years = [...new Set(dataMonths.map((month) => Number(month.slice(0, 4))))]
+    .filter((year) => year <= now.getFullYear())
+    .sort((a, b) => b - a);
+  for (const year of years) {
+    const startMonth = `${year}-01`;
+    const endMonth = year === now.getFullYear() ? lastCompletedMonth : `${year}-12`;
+    if (monthIndex(endMonth) < monthIndex(startMonth)) continue;
+    presets.push({
+      value: `year-${year}`,
+      label: String(year),
+      kind: 'year',
+      startMonth,
+      endMonth,
+      months: monthIndex(endMonth) - monthIndex(startMonth) + 1,
+    });
+  }
+  return presets;
 }
 
 const COLORS = [
@@ -104,9 +155,11 @@ export function rollingSpending(
   range: SpendingRangeOptions = { months: 12, includeCurrentMonth: false },
 ): RollingSpending {
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const endMonth = range.includeCurrentMonth ? currentMonth : addMonths(currentMonth, -1);
-  const monthCount = Math.max(1, Math.floor(range.months));
-  const startMonth = addMonths(endMonth, -(monthCount - 1));
+  const endMonth = range.endMonth ?? (range.includeCurrentMonth ? currentMonth : addMonths(currentMonth, -1));
+  const monthCount = range.startMonth && range.endMonth
+    ? Math.max(1, monthIndex(endMonth) - monthIndex(range.startMonth) + 1)
+    : Math.max(1, Math.floor(range.months ?? 12));
+  const startMonth = range.startMonth ?? addMonths(endMonth, -(monthCount - 1));
   const months: SpendingMonth[] = Array.from({ length: monthCount }, (_, i) => ({
     month: addMonths(startMonth, i), total: 0, categories: {},
   }));

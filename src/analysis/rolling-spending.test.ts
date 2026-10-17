@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Snapshot } from '../types';
-import { rollingSpending } from './rolling-spending';
+import { availableSpendingRanges, rollingSpending } from './rolling-spending';
 
 function fixture(): Snapshot {
   return {
@@ -78,5 +78,21 @@ describe('rollingSpending', () => {
     expect(result.endMonth).toBe('2026-10');
     expect(result.months).toHaveLength(3);
     expect(result.totals.total).toBe(206_000);
+  });
+
+  it('offers rolling periods and calendar years based on available history', () => {
+    const options = availableSpendingRanges(fixture(), new Date(2026, 9, 17));
+    expect(options.map(({ value }) => value)).toEqual([
+      'rolling-1', 'rolling-3', 'rolling-6', 'rolling-12', 'this-month', 'year-2026', 'year-2025',
+    ]);
+  });
+
+  it('adds longer rolling periods when enough history is available', () => {
+    const snap = fixture();
+    const older = { ...snap.transactions[0], id: 'older', date: '2022-10-01' };
+    const options = availableSpendingRanges({ ...snap, transactions: [...snap.transactions, older] }, new Date(2026, 9, 17));
+    expect(options.map(({ value }) => value)).toContain('rolling-48');
+    expect(options.map(({ value }) => value)).not.toContain('rolling-60');
+    expect(options.find(({ value }) => value === 'year-2026')).toMatchObject({ startMonth: '2026-01', endMonth: '2026-09' });
   });
 });
