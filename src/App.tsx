@@ -85,9 +85,6 @@ function SpendingDashboard({ snapshot, onDisconnect }: { snapshot: NonNullable<A
   const currency = snapshot.currency;
   const fmt = (value: number) => formatMoney(value, currency);
   const fmtWhole = (value: number) => formatMoney(Math.round(value / 100) * 100, currency).replace(/\.00(?=\D|$)/, '');
-  const spendingPeriodDetail = range.kind === 'month' ? 'this month'
-    : range.kind === 'year' ? range.label
-      : range.months === 1 ? '/month' : range.months === 12 ? '/year' : `/${range.months} months`;
   const disconnectMutation = useMutation({ mutationFn: disconnect, onSuccess: onDisconnect });
   const data = period.months.map((month) => ({
     ...month,
@@ -129,7 +126,7 @@ function SpendingDashboard({ snapshot, onDisconnect }: { snapshot: NonNullable<A
 
     <section className="spending-summary" aria-label={`${range.label} spending summary`}>
       <div className="metric-grid metric-grid-overview">
-        <MetricCard label="Total spending" value={fmtWhole(period.totals.total)} detail={spendingPeriodDetail} />
+        <MetricCard label="Annualized spending" value={fmtWhole(period.totals.average * 12)} detail="/year" />
         <MetricCard label="Monthly average" value={fmtWhole(period.totals.average)} detail="/month" />
       </div>
     </section>
