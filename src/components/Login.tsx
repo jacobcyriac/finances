@@ -1,19 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { connect, tryDemo, importZip } from '../api/client';
 import { normalizeServerURL } from '../lib/url';
+import { ACTUAL_SERVER_URL, ACTUAL_SYNC_ID } from '../config';
 import type { ConnectRequest } from '../types';
-
-// Remember the server URL across reloads (only the URL — never the password,
-// sync ID, or encryption key).
-const SERVER_URL_KEY = 'aa.serverURL.v1';
-function loadServerURL(): string {
-  try {
-    return localStorage.getItem(SERVER_URL_KEY) ?? '';
-  } catch {
-    return '';
-  }
-}
 
 const FIELDS: {
   key: keyof ConnectRequest;
@@ -23,9 +13,7 @@ const FIELDS: {
   optional?: boolean;
   hint?: string;
 }[] = [
-  { key: 'serverURL', label: 'Server URL', type: 'text', placeholder: 'https://budget.example.com' },
   { key: 'password', label: 'Password', type: 'password', placeholder: 'Your server password' },
-  { key: 'syncId', label: 'Sync ID', type: 'text', placeholder: '00000000-0000-0000-0000-000000000000', hint: 'Settings → Advanced → Sync ID in Actual' },
   { key: 'encryptionKey', label: 'End-to-end encryption key', type: 'password', placeholder: 'Only if your file is encrypted', optional: true },
 ];
 
@@ -33,20 +21,11 @@ export function Login({ onConnected }: { onConnected: () => void }) {
   const qc = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState<ConnectRequest>(() => ({
-    serverURL: loadServerURL(),
+    serverURL: normalizeServerURL(ACTUAL_SERVER_URL),
     password: '',
-    syncId: '',
+    syncId: ACTUAL_SYNC_ID,
     encryptionKey: '',
   }));
-
-  // Persist the server URL as it changes, so it's prefilled next reload.
-  useEffect(() => {
-    try {
-      localStorage.setItem(SERVER_URL_KEY, form.serverURL);
-    } catch {
-      /* ignore (e.g. storage disabled) */
-    }
-  }, [form.serverURL]);
 
   const done = () => {
     qc.invalidateQueries({ queryKey: ['snapshot'] });
@@ -109,15 +88,6 @@ export function Login({ onConnected }: { onConnected: () => void }) {
                 placeholder={f.placeholder}
                 value={form[f.key] ?? ''}
                 onChange={(e) => setForm((s) => ({ ...s, [f.key]: e.target.value }))}
-                onBlur={
-                  f.key === 'serverURL'
-                    ? (e) => {
-                        const normalized = normalizeServerURL(e.target.value);
-                        if (normalized !== e.target.value)
-                          setForm((s) => ({ ...s, serverURL: normalized }));
-                      }
-                    : undefined
-                }
               />
               {f.hint && <p className="mt-1 text-[11px] text-[var(--text-faint)]">{f.hint}</p>}
             </div>
@@ -197,9 +167,9 @@ export function Login({ onConnected }: { onConnected: () => void }) {
         </div>
 
         <p className="mt-5 text-center text-[11px] leading-relaxed text-[var(--text-faint)]">
-          Credentials go only to the Actual sync server you enter above. Your budget is
-          downloaded, decrypted and analyzed inside this browser tab and kept in memory
-          for the session — nothing is sent anywhere else.
+          Your password and encryption key are sent only to your configured Actual server.
+          Budget data is decrypted and analyzed in this browser. Actual's browser engine
+          keeps its local budget cache in this browser's storage on this device.
         </p>
 
         <p className="mt-3 text-center text-[11px] text-[var(--text-faint)]">

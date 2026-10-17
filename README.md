@@ -1,59 +1,64 @@
-# Actual · Financial Analysis
+# Actual Budget Spending Dashboard
 
-A **demo app** showing how to use [`@actual-app/api`](https://www.npmjs.com/package/@actual-app/api)
-**directly in the browser** — no backend of your own. It loads an [Actual Budget](https://actualbudget.org)
-file client-side and renders a read-only analysis dashboard from it.
+A browser-only, read-only dashboard built from Actual's official `browser-app-demo`. It connects directly to an Actual sync server (including a PikaPods instance), downloads and decrypts the budget in the browser, and displays the 12 most recently completed months.
 
-> ⚠️ **Disclaimer — demo/example only.** This is a reference app built to
-> demonstrate browser usage of `@actual-app/api` (which Actual currently labels
-> experimental). It is **not production-ready** and is not intended for production
-> use — treat it as an example to learn from, not a maintained product.
+## Run locally
 
-![Screenshot of the analysis dashboard](assets/screenshot.png)
+Requirements: Node.js 22 or newer and Corepack.
 
-## The interesting part: `@actual-app/api` in the browser
-
-All the package usage lives in [`src/snapshot/actual-browser.ts`](src/snapshot/actual-browser.ts).
-It uses the **browser build** of `@actual-app/api`, which downloads your encrypted
-budget, decrypts it locally, and opens it as a SQLite database compiled to
-WebAssembly (persisted via IndexedDB). The key calls:
-
-- `api.init(...)` — boot the WASM engine
-- `api.downloadBudget(...)` — fetch and decrypt the budget from a sync server
-- `api.importBudget(...)` — or load an Actual export (.zip) with no server at all
-- `api.getAccounts()` / `api.getTransactions(...)` / `api.getPreferences()` — read the data
-
-Everything runs client-side; the app only ever calls **read** APIs and never
-modifies your budget.
-
-> **Note:** the browser build uses `SharedArrayBuffer`, so the page must be
-> [cross-origin isolated](https://web.dev/articles/coop-coep) — served over HTTPS
-> with `Cross-Origin-Opener-Policy: same-origin` and
-> `Cross-Origin-Embedder-Policy: require-corp`. The dev server sets these for you.
-
-## Run it
-
-```bash
-corepack enable   # once, to activate Yarn 4 via Corepack
+```sh
+corepack enable
 yarn install
 yarn dev
 ```
 
-Open the printed Vite URL (default http://localhost:5173) and click
-**Try the demo** to explore the dashboard with synthetic sample data — no account
-needed. To use real data, fill in your **Server URL**, **Password**, **Sync ID**,
-and (if encrypted) **Encryption key** instead.
+Open the local Vite address and choose **Try the demo** to see synthetic data, or connect using the server password and optional end-to-end encryption key. Your server URL and Sync ID are set in `src/config.ts`, so the form does not ask for them. The password and encryption key are held in page state and are not saved. Actual's browser engine stores its downloaded budget cache in this browser's IndexedDB on this device.
 
-```bash
-yarn build   # produces a static site in dist/ (must be served cross-origin isolated)
+The server password is the password used to sign in to Actual; enter the encryption key only when the budget uses end-to-end encryption. The server URL and Sync ID in `src/config.ts` are included in the built JavaScript and are visible to anyone who can access the dashboard. Keep the password and encryption key out of source files and the repository.
+
+## Analysis rules
+
+- Uses the 12 completed calendar months before the current month.
+- Outflows display as positive expenses. Positive transactions in expense categories offset spending as refunds.
+- Excludes income and starting-balance categories, transfers, off-budget accounts, and transactions whose notes contain `#noise` or `#payment`.
+- Includes uncategorized outflows.
+- Housing, Food, Travel, total spending, and monthly average KPIs use the same filtered transaction set.
+- The app only calls Actual read methods. It never changes the budget.
+
+Category colors are deterministic for each category ID and remain the same between reloads.
+
+## Build and preview
+
+```sh
+yarn build
+yarn preview
 ```
 
-## Development
+The preview server sets the required headers. The production static site is in `dist/`.
 
-```bash
-yarn test        # analysis + render tests (Vitest)
-yarn typecheck
+Run the analysis suite and TypeScript check with `yarn test` and `yarn typecheck`.
+
+## Deploy to Cloudflare Pages or Netlify
+
+Set the build command to `yarn build` and the output directory to `dist`. The included `public/_headers` file is copied to the build output and sets:
+
+```text
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Embedder-Policy: require-corp
 ```
 
-The financial math lives in `src/analysis/` as pure, unit-tested functions; the
-UI in `src/components/`.
+These headers are required because Actual's browser API uses `SharedArrayBuffer`. The application origin must also use HTTPS. Actual's current sync server applies permissive CORS middleware by default, so the dashboard can connect cross-origin; if a proxy in front of Actual overrides CORS, it must allow the dashboard origin and the Actual API request headers/methods. Do not add the password or encryption key to hosting environment variables or source files.
+
+## Deploy to GitHub Pages
+
+The included `.github/workflows/deploy.yml` builds and publishes `dist/` on pushes to `main` and supports manual runs. Push this project to a repository you own, then open **Settings → Pages** and set the publishing source to **GitHub Actions**. The Vite build uses relative asset paths so it works at the project URL under `/repository-name/`. GitHub Pages does not let a repository set COOP/COEP response headers; `index.html` registers the included `coi-serviceworker.js` to provide cross-origin isolation in the browser. The first visit may reload once while the service worker takes control.
+
+On GitHub Free, Pages requires a public repository and the published site is publicly accessible. Anyone who opens the page can see the configured server URL and Sync ID and can attempt to connect; they still need a valid password for that Actual server (and the end-to-end encryption key, if enabled) to read the budget. Actual budget data is processed in the visitor's browser. If you need the published site itself to be private, GitHub Pages access control is limited to GitHub Enterprise Cloud organization sites.
+
+## Current Actual browser API requirements
+
+This app is based on the official [`actualbudget/browser-app-demo`](https://github.com/actualbudget/browser-app-demo), cloned at commit `f78043a` (2026-10-10), using `@actual-app/api` `^26.10.0`. The browser integration is in `src/snapshot/actual-browser.ts` and uses `init`, `downloadBudget`, `getAccounts`, `getTransactions`, `getCategories`, `getCategoryGroups`, `getPayees`, and `getPreferences`. It passes transaction `notes` through to the local analysis for the requested tag exclusions.
+
+Actual documents that the browser API runs its SQLite/WASM engine in a Web Worker, stores its data in IndexedDB, and requires cross-origin isolation: HTTPS, `Cross-Origin-Opener-Policy: same-origin`, and `Cross-Origin-Embedder-Policy: require-corp`. See [Actual API docs](https://actualbudget.org/docs/api/) and [SharedArrayBuffer setup](https://actualbudget.org/docs/troubleshooting/shared-array-buffer/).
+
+The browser API remains an experimental Actual interface; re-check Actual's documentation and the official demo when updating the API package.

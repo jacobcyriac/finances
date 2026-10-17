@@ -72,6 +72,7 @@ function mapTxn(raw: RawTxn, overrides: Partial<TransactionDTO> = {}): Transacti
     transfer_id: raw.transfer_id ?? null,
     is_parent: Boolean(raw.is_parent),
     is_child: Boolean(raw.is_child),
+    notes: raw.notes ?? null,
     ...overrides,
   };
 }

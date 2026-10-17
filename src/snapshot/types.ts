@@ -25,6 +25,7 @@ export interface TransactionDTO {
   transfer_id: string | null; // set when this is a transfer leg
   is_parent: boolean;
   is_child: boolean;
+  notes?: string | null;
 }
 
 export interface CategoryDTO {
