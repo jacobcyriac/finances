@@ -218,6 +218,14 @@ body {
 .chart-total { text-align: right; color: #f5f5f8; font-size: 17px; font-weight: 650; font-variant-numeric: tabular-nums; }
 .chart-total span { display: block; margin-top: 4px; color: #858b9d; font-size: 10px; font-weight: 500; }
 .chart-wrap { height: 330px; margin: 17px -8px 0; }
+.app-tabs { max-width: 1380px; margin: 0 auto; padding: 24px 32px 0; }
+.app-tab-list { display: flex; gap: 6px; border-bottom: 1px solid var(--line); }
+.app-tab { position: relative; padding: 10px 15px 12px; color: var(--text-faint); font-size: 13px; font-weight: 600; transition: color .18s; }
+.app-tab:hover { color: var(--text); }
+.app-tab[aria-selected="true"] { color: var(--text); }
+.app-tab[aria-selected="true"]::after { position: absolute; right: 12px; bottom: -1px; left: 12px; height: 2px; border-radius: 2px 2px 0 0; background: var(--brand-bright); content: ""; }
+.app-tab:focus-visible { outline: 2px solid var(--brand-bright); outline-offset: 2px; border-radius: 6px; }
+.app-tabpanel[hidden] { display: none; }
 .legend-list { display: flex; flex-wrap: wrap; gap: 10px 18px; border-top: 1px solid var(--line); padding: 15px 4px 0; }
 .legend-list span { display: inline-flex; align-items: center; gap: 7px; color: #a9adc0; font-size: 10px; }
 .legend-list i { width: 8px; height: 8px; border-radius: 3px; }
@@ -237,6 +245,7 @@ tfoot th, tfoot td { border-top: 1px solid var(--line-strong); border-bottom: 0;
 .center-note { min-height: 100%; display: grid; place-items: center; color: #a9adc0; font-size: 14px; }
 @media (max-width: 1050px) { .metric-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 680px) {
+  .app-tabs { padding: 18px 15px 0; }
   .dashboard-shell { padding: 28px 15px 22px; }
   .page-header { align-items: flex-start; flex-direction: column; margin-bottom: 20px; }
   .header-actions { align-self: stretch; justify-content: flex-end; }

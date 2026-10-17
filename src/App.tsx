@@ -6,6 +6,7 @@ import {
 } from 'recharts';
 import { getSnapshot, disconnect } from './api/client';
 import { Login } from './components/Login';
+import { Dashboard as NetWorthDashboard } from './components/Dashboard';
 import { rollingSpending } from './analysis/rolling-spending';
 import { formatMoney, formatCompact } from './lib/money';
 import type { CurrencyFormat } from './types';
@@ -120,9 +121,39 @@ function LoadingNote() {
 
 export default function App() {
   const [connected, setConnected] = useState(false);
+  const [activeTab, setActiveTab] = useState<'expenses' | 'net-worth'>('expenses');
   const { data: snapshot, isLoading, error } = useQuery({ queryKey: ['snapshot'], queryFn: getSnapshot, enabled: connected });
   if (!connected) return <Login onConnected={() => setConnected(true)} />;
   if (isLoading) return <LoadingNote />;
   if (error || !snapshot) return <div className="center-note">Could not load the budget snapshot. Disconnect and reconnect to try again.</div>;
-  return <SpendingDashboard snapshot={snapshot} onDisconnect={() => setConnected(false)} />;
+  return <>
+    <nav className="app-tabs" aria-label="Dashboard sections">
+      <div className="app-tab-list" role="tablist" aria-label="Financial dashboards">
+        <button
+          id="expenses-tab"
+          className="app-tab"
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'expenses'}
+          aria-controls="expenses-panel"
+          onClick={() => setActiveTab('expenses')}
+        >Expenses</button>
+        <button
+          id="net-worth-tab"
+          className="app-tab"
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'net-worth'}
+          aria-controls="net-worth-panel"
+          onClick={() => setActiveTab('net-worth')}
+        >Net Worth</button>
+      </div>
+    </nav>
+    <section id="expenses-panel" className="app-tabpanel" role="tabpanel" aria-labelledby="expenses-tab" hidden={activeTab !== 'expenses'}>
+      <SpendingDashboard snapshot={snapshot} onDisconnect={() => setConnected(false)} />
+    </section>
+    <section id="net-worth-panel" className="app-tabpanel" role="tabpanel" aria-labelledby="net-worth-tab" hidden={activeTab !== 'net-worth'}>
+      <NetWorthDashboard onDisconnect={() => setConnected(false)} />
+    </section>
+  </>;
 }
