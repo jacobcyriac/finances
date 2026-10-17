@@ -356,8 +356,8 @@ body {
 .metric-grid-overview { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .metric-card { padding: 0; min-height: 0; }
 .metric-reading { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0 9px; margin-top: 8px; }
-.metric-value { color: var(--text); font-size: clamp(27px, 3vw, 38px); font-weight: 650; letter-spacing: -.04em; font-variant-numeric: tabular-nums; white-space: nowrap; line-height: 1.1; }
-.metric-detail { color: var(--text-dim); font-size: 14px; font-weight: 500; white-space: nowrap; }
+.metric-value { color: var(--text); font-size: clamp(48px, 5.8vw, 72px); font-weight: 800; letter-spacing: -.065em; font-variant-numeric: tabular-nums; white-space: nowrap; line-height: .98; }
+.metric-detail { color: var(--text-faint); font-size: 15px; font-weight: 500; white-space: nowrap; }
 .chart-panel, .table-panel { padding: 23px 24px; margin-bottom: 18px; }
 .treemap-scroll { margin: 16px 0 0; overflow: visible; }
 .treemap-columns { display: grid; min-width: 0; gap: 1px; }
@@ -482,8 +482,9 @@ tfoot th, tfoot td { border-top: 1px solid var(--line-strong); border-bottom: 0;
   .page-header { align-items: flex-start; flex-direction: column; margin-bottom: 20px; }
   .header-actions { align-self: stretch; justify-content: flex-end; }
   .metric-grid { gap: 9px; }
-  .metric-value { font-size: clamp(23px, 6vw, 32px); }
-  .metric-detail { font-size: 12px; }
+  .metric-grid-overview { grid-template-columns: 1fr; gap: 23px; }
+  .metric-value { font-size: clamp(44px, 12vw, 58px); }
+  .metric-detail { font-size: 14px; }
   .chart-panel, .table-panel { padding: 18px 14px; }
   .expense-table-controls { align-items: stretch; }
   .expense-table-panel > .section-heading { align-items: flex-start; flex-direction: column; }
