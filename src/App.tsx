@@ -82,6 +82,7 @@ function SpendingDashboard({ snapshot, onDisconnect }: { snapshot: NonNullable<A
     endMonth: range.endMonth,
     includeCurrentMonth: range.kind === 'month',
   }), [snapshot, range]);
+  const showPeriodTotal = period.months.length !== 12;
   const currency = snapshot.currency;
   const fmt = (value: number) => formatMoney(value, currency);
   const fmtWhole = (value: number) => formatMoney(Math.round(value / 100) * 100, currency).replace(/\.00(?=\D|$)/, '');
@@ -125,7 +126,8 @@ function SpendingDashboard({ snapshot, onDisconnect }: { snapshot: NonNullable<A
     </header>
 
     <section className="spending-summary" aria-label={`${range.label} spending summary`}>
-      <div className="metric-grid metric-grid-overview">
+      <div className={`metric-grid metric-grid-overview${showPeriodTotal ? ' metric-grid-three' : ''}`}>
+        {showPeriodTotal && <MetricCard label="Total spending" value={fmtWhole(period.totals.total)} detail={range.label} />}
         <MetricCard label="Annualized spending" value={fmtWhole(period.totals.average * 12)} detail="/year" />
         <MetricCard label="Monthly average" value={fmtWhole(period.totals.average)} detail="/month" />
       </div>
