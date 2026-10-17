@@ -62,4 +62,21 @@ describe('rollingSpending', () => {
     const second = rollingSpending(fixture(), new Date(2026, 9, 17));
     expect(first.categories.map(({ id, color }) => [id, color])).toEqual(second.categories.map(({ id, color }) => [id, color]));
   });
+
+  it('supports shorter periods while excluding the current month', () => {
+    const result = rollingSpending(fixture(), new Date(2026, 9, 17), { months: 3, includeCurrentMonth: false });
+    expect(result.startMonth).toBe('2026-07');
+    expect(result.endMonth).toBe('2026-09');
+    expect(result.months).toHaveLength(3);
+    expect(result.totals.total).toBe(116_000);
+    expect(result.totals.average).toBe(38_667);
+  });
+
+  it('can include the current partial month in the selected period', () => {
+    const result = rollingSpending(fixture(), new Date(2026, 9, 17), { months: 3, includeCurrentMonth: true });
+    expect(result.startMonth).toBe('2026-08');
+    expect(result.endMonth).toBe('2026-10');
+    expect(result.months).toHaveLength(3);
+    expect(result.totals.total).toBe(206_000);
+  });
 });

@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { buildIndexes, isTransfer } from '../analysis/_shared';
 import { spendingGroupColor } from '../analysis/rolling-spending';
 import { formatMoney } from '../lib/money';
@@ -28,7 +28,7 @@ function compare(a: string | number, b: string | number): number {
   return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' });
 }
 
-export function ExpenseTransactionsTable({ snapshot }: { snapshot: Snapshot }) {
+export function ExpenseTransactionsTable({ snapshot, startMonth, endMonth, monthCount }: { snapshot: Snapshot; startMonth: string; endMonth: string; monthCount: number }) {
   const [search, setSearch] = useState('');
   const [accountFilter, setAccountFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
@@ -36,6 +36,8 @@ export function ExpenseTransactionsTable({ snapshot }: { snapshot: Snapshot }) {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [rowLimit, setRowLimit] = useState<RowLimit>(25);
   const [page, setPage] = useState(0);
+
+  useEffect(() => setPage(0), [startMonth, endMonth]);
 
   const { rows, accounts, categories } = useMemo(() => {
     const indexes = buildIndexes(snapshot);
@@ -50,6 +52,8 @@ export function ExpenseTransactionsTable({ snapshot }: { snapshot: Snapshot }) {
     const groupIndexes = new Map(snapshot.categoryGroups.map((group, index) => [group.id, index]));
     const rows = snapshot.transactions.flatMap((tx): ExpenseRow[] => {
       if (tx.is_parent || isTransfer(tx, indexes) || excludedByNote(tx.notes) || !onBudget.has(tx.account)) return [];
+      const transactionMonth = tx.date.slice(0, 7);
+      if (transactionMonth < startMonth || transactionMonth > endMonth) return [];
       const category = tx.category ? indexes.categoryById.get(tx.category) : undefined;
       const group = category ? groupNames.get(category.group_id) : undefined;
       if (category?.is_income || (category && snapshot.categoryGroups.find((item) => item.id === category.group_id)?.is_income)) return [];
@@ -74,7 +78,7 @@ export function ExpenseTransactionsTable({ snapshot }: { snapshot: Snapshot }) {
       accounts: [...new Set(rows.map((row) => row.account))].sort((a, b) => a.localeCompare(b)),
       categories: [...new Map(rows.map((row) => [row.categoryId, row.category])).entries()].sort((a, b) => a[1].localeCompare(b[1])),
     };
-  }, [snapshot]);
+  }, [snapshot, startMonth, endMonth]);
 
   const filteredRows = useMemo(() => {
     const needle = search.trim().toLocaleLowerCase();
@@ -93,9 +97,8 @@ export function ExpenseTransactionsTable({ snapshot }: { snapshot: Snapshot }) {
 
   const filteredSummary = useMemo(() => {
     const total = filteredRows.reduce((sum, row) => sum + row.amount, 0);
-    const activeMonths = new Set(filteredRows.map((row) => row.date.slice(0, 7))).size;
-    return { total, activeMonths, monthlyAverage: activeMonths ? total / activeMonths : 0 };
-  }, [filteredRows]);
+    return { total, monthlyAverage: monthCount ? total / monthCount : 0 };
+  }, [filteredRows, monthCount]);
 
   const pageSize = rowLimit === 'all' ? filteredRows.length : rowLimit;
   const pageCount = pageSize ? Math.ceil(filteredRows.length / pageSize) : 0;
@@ -118,11 +121,11 @@ export function ExpenseTransactionsTable({ snapshot }: { snapshot: Snapshot }) {
 
   return <section className="panel table-panel expense-table-panel">
     <div className="section-heading">
-      <div><h2>All expenses</h2><p>Complete expense history · refunds appear as negative amounts</p></div>
+      <div><h2>Expenses in selected period</h2><p>Refunds appear as negative amounts</p></div>
       <div className="expense-row-summary" aria-label="Filtered expense summary">
         <div><strong>{filteredRows.length.toLocaleString()}</strong><span>transactions</span></div>
         <div><strong>{formatMoney(filteredSummary.total, snapshot.currency)}</strong><span>filtered total</span></div>
-        <div><strong>{formatMoney(filteredSummary.monthlyAverage, snapshot.currency)}</strong><span>average per active month · {filteredSummary.activeMonths} {filteredSummary.activeMonths === 1 ? 'month' : 'months'}</span></div>
+        <div><strong>{formatMoney(filteredSummary.monthlyAverage, snapshot.currency)}</strong><span>monthly average · {monthCount} {monthCount === 1 ? 'month' : 'months'}</span></div>
       </div>
     </div>
     <div className="expense-table-controls">

@@ -12,7 +12,7 @@ import { GroupStackedBars } from './components/charts/GroupStackedBars';
 import { ExpenseTransactionsTable } from './components/ExpenseTransactionsTable';
 import { clearSessionCredentials, loadSessionCredentials, saveSessionCredentials } from './lib/session';
 import { loadCachedSnapshot, saveCachedSnapshot } from './snapshot/cache';
-import { rollingSpending } from './analysis/rolling-spending';
+import { rollingSpending, type SpendingRangeOptions } from './analysis/rolling-spending';
 import { formatMoney, formatCompact } from './lib/money';
 import type { ConnectRequest, CurrencyFormat } from './types';
 
@@ -68,7 +68,10 @@ function MetricCard({ label, value, detail, color }: { label: string; value: str
 
 function SpendingDashboard({ snapshot, onDisconnect }: { snapshot: NonNullable<Awaited<ReturnType<typeof getSnapshot>>>; onDisconnect: () => void }) {
   const [spendingView, setSpendingView] = useState<'treemap' | 'bars'>('treemap');
-  const period = useMemo(() => rollingSpending(snapshot), [snapshot]);
+  const [rangeMonths, setRangeMonths] = useState<1 | 3 | 6 | 12 | 24>(12);
+  const [excludeCurrentMonth, setExcludeCurrentMonth] = useState(true);
+  const periodOptions: SpendingRangeOptions = { months: rangeMonths, includeCurrentMonth: !excludeCurrentMonth };
+  const period = useMemo(() => rollingSpending(snapshot, new Date(), periodOptions), [snapshot, rangeMonths, excludeCurrentMonth]);
   const currency = snapshot.currency;
   const fmt = (value: number) => formatMoney(value, currency);
   const fmtWhole = (value: number) => formatMoney(Math.round(value / 100) * 100, currency).replace(/\.00(?=\D|$)/, '');
@@ -88,7 +91,22 @@ function SpendingDashboard({ snapshot, onDisconnect }: { snapshot: NonNullable<A
       <div>
         <div className="eyebrow"><span className="status-dot" /> Actual Budget · Spending</div>
         <h1>{snapshot.budgetName}</h1>
-        <p className="subtitle">Net expenses for the 12 completed months from {monthName(period.startMonth, { month: 'long', year: 'numeric' })} through {monthName(period.endMonth, { month: 'long', year: 'numeric' })}.</p>
+        <p className="subtitle">Net expenses from {monthName(period.startMonth, { month: 'short', year: 'numeric' })} through {monthName(period.endMonth, { month: 'short', year: 'numeric' })}.</p>
+        <div className="period-controls" aria-label="Spending date range">
+          <label className="period-select-label"><span>Period</span>
+            <select className="theme-select" value={rangeMonths} onChange={(event) => setRangeMonths(Number(event.target.value) as 1 | 3 | 6 | 12 | 24)}>
+              <option value={1}>Last month</option>
+              <option value={3}>Last 3 months</option>
+              <option value={6}>Last 6 months</option>
+              <option value={12}>Last 12 months</option>
+              <option value={24}>Last 24 months</option>
+            </select>
+          </label>
+          <label className="period-current-toggle">
+            <input type="checkbox" checked={excludeCurrentMonth} onChange={(event) => setExcludeCurrentMonth(event.target.checked)} />
+            <span>Exclude current month</span>
+          </label>
+        </div>
       </div>
       <div className="header-actions">
         {currency.code && <span className="chip">{currency.code}</span>}
@@ -154,7 +172,7 @@ function SpendingDashboard({ snapshot, onDisconnect }: { snapshot: NonNullable<A
       </>}
     </section>
 
-    <ExpenseTransactionsTable snapshot={snapshot} />
+    <ExpenseTransactionsTable snapshot={snapshot} startMonth={period.startMonth} endMonth={period.endMonth} monthCount={period.months.length} />
 
   <footer>Read-only analysis · Data is processed in this browser</footer>
   </main>;

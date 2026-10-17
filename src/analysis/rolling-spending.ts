@@ -33,6 +33,11 @@ export interface RollingSpending {
   endMonth: string;
 }
 
+export interface SpendingRangeOptions {
+  months: number;
+  includeCurrentMonth: boolean;
+}
+
 const COLORS = [
   'var(--series-1)', 'var(--series-2)', 'var(--series-3)', 'var(--series-4)',
   'var(--series-5)', 'var(--series-6)', 'var(--series-7)', 'var(--series-8)',
@@ -92,12 +97,17 @@ function sumGroups(months: SpendingMonth[], categories: SpendingCategory[], matc
   return months.reduce((sum, month) => sum + [...ids].reduce((subtotal, id) => subtotal + (month.categories[id] ?? 0), 0), 0);
 }
 
-/** Completed 12-month net expenses; refunds offset their original expense category. */
-export function rollingSpending(snap: Snapshot, now = new Date()): RollingSpending {
+/** Net expenses for a selected run of calendar months; refunds offset their original expense category. */
+export function rollingSpending(
+  snap: Snapshot,
+  now = new Date(),
+  range: SpendingRangeOptions = { months: 12, includeCurrentMonth: false },
+): RollingSpending {
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const endMonth = addMonths(currentMonth, -1);
-  const startMonth = addMonths(endMonth, -11);
-  const months: SpendingMonth[] = Array.from({ length: 12 }, (_, i) => ({
+  const endMonth = range.includeCurrentMonth ? currentMonth : addMonths(currentMonth, -1);
+  const monthCount = Math.max(1, Math.floor(range.months));
+  const startMonth = addMonths(endMonth, -(monthCount - 1));
+  const months: SpendingMonth[] = Array.from({ length: monthCount }, (_, i) => ({
     month: addMonths(startMonth, i), total: 0, categories: {},
   }));
   const monthByKey = new Map(months.map((month) => [month.month, month]));
@@ -177,7 +187,7 @@ export function rollingSpending(snap: Snapshot, now = new Date()): RollingSpendi
       food: sumGroups(months, categories, foodGroup),
       travel: sumGroups(months, categories, (group) => /travel|vacation/i.test(group)),
       total,
-      average: Math.round(total / 12),
+      average: Math.round(total / months.length),
     },
     startMonth,
     endMonth,
