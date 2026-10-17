@@ -42,7 +42,11 @@ export function GroupStackedBars({ groups, currency }: Props) {
         const gapSharePx = segments.length > 0 ? (segments.length - 1) / segments.length : 0;
         return <section className="group-bar-row" key={group.id}>
           <div className="group-bar-track">
-          <div className="group-stacked-bar" role="img" aria-label={`${group.name}: ${formatGroupAmount(group.total, currency)} total`} style={{ width: `${maxGroupTotal > 0 ? Math.max(0, group.total) / maxGroupTotal * 80 : 0}%` }}>
+          <header className="group-bar-heading">
+            <strong>{group.name}</strong>
+            <span style={{ color: groupFill(group.color) }}>{formatGroupAmount(group.total, currency)}</span>
+          </header>
+          <div className="group-stacked-bar" role="img" aria-label={`${group.name}: ${formatGroupAmount(group.total, currency)} total`} style={{ width: `${maxGroupTotal > 0 ? Math.max(0, group.total) / maxGroupTotal * 100 : 0}%` }}>
             {segments.map((category) => {
               const width = positiveTotal > 0 ? (category.visibleTotal / positiveTotal) * 100 : 0;
               return <div
@@ -55,10 +59,6 @@ export function GroupStackedBars({ groups, currency }: Props) {
               </div>;
             })}
           </div>
-          <header className="group-bar-heading">
-            <strong>{group.name}</strong>
-            <span style={{ color: groupFill(group.color) }}>{formatGroupAmount(group.total, currency)}</span>
-          </header>
           </div>
         </section>;
       })}
