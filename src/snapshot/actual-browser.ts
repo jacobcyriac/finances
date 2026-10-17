@@ -55,6 +55,7 @@ function mapError(err: unknown): ConnectErrorCode {
     case 'needs-key':
       return 'INVALID_FILE_KEY';
     case 'network-failure':
+    case 'network':
       return 'NETWORK';
     case 'budget-not-found':
       return 'NOT_FOUND';
@@ -118,6 +119,16 @@ export async function connectBrowser(req: ConnectRequest): Promise<Snapshot> {
   );
 }
 
+/** Sync the open local budget with Actual and return a fresh read-only snapshot. */
+export async function syncBrowser(): Promise<Snapshot> {
+  try {
+    await api.sync();
+    return await readSnapshot();
+  } catch (err) {
+    throw new BrowserApiError(mapError(err), err);
+  }
+}
+
 // Load a budget from an Actual zip export (db.sqlite + metadata.json) entirely
 // in the browser — no sync server. init() with no server config brings up the
 // local WASM engine; api.importBudget loads the export, after which the same
@@ -135,8 +146,9 @@ export async function importZip(file: File): Promise<Snapshot> {
 async function fetchRawData(prefs: Preferences): Promise<RawData> {
   const generatedAt = new Date().toISOString();
 
-  const [accounts, categories, categoryGroups, payees] = await Promise.all([
+  const [accounts, accountGroups, categories, categoryGroups, payees] = await Promise.all([
     api.getAccounts(),
+    api.getAccountGroups(),
     api.getCategories(),
     api.getCategoryGroups(),
     api.getPayees(),
@@ -173,6 +185,7 @@ async function fetchRawData(prefs: Preferences): Promise<RawData> {
     budgetName,
     currency: currencyFromPrefs(prefs),
     accounts,
+    accountGroups,
     balances,
     transactions,
     categories,

@@ -76,13 +76,18 @@ export function categoryTrends(
   topN = 6,
   idx: Indexes = buildIndexes(snap),
   ranked: Ranked[] = byCategory(snap, idx),
-): { rows: Record<string, number | string>[]; keys: string[] } {
+): { rows: Record<string, number | string>[]; keys: string[]; groupsByCategory: Record<string, string> } {
   const top = ranked.slice(0, topN);
   const topIds = new Set(top.map((c) => c.id));
   const keys = top.map((c) => c.name);
+  const groupNames = new Map(snap.categoryGroups.map((group) => [group.id, group.name]));
+  const groupsByCategory = Object.fromEntries(top.map((category) => {
+    const groupId = idx.categoryById.get(category.id)?.group_id;
+    return [category.name, groupNames.get(groupId ?? '') ?? 'Other'];
+  }));
 
   const txs = expenseTxs(snap, idx);
-  if (txs.length === 0) return { rows: [], keys };
+  if (txs.length === 0) return { rows: [], keys, groupsByCategory };
   let min = '9999-99';
   let max = '0000-00';
   for (const tx of txs) {
@@ -108,7 +113,7 @@ export function categoryTrends(
     for (const k of keys) row[k] = byMonth.get(month)![k] ?? 0;
     return row;
   });
-  return { rows, keys };
+  return { rows, keys, groupsByCategory };
 }
 
 export function biggestTransactions(

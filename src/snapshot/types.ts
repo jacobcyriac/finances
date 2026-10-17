@@ -10,9 +10,15 @@ export interface CurrencyFormat {
 export interface AccountDTO {
   id: string;
   name: string;
+  account_group_id?: string | null;
   offbudget: boolean;
   closed: boolean;
   balance: number; // minor units, signed
+}
+
+export interface AccountGroupDTO {
+  id: string;
+  name: string;
 }
 
 export interface TransactionDTO {
@@ -51,6 +57,7 @@ export interface Snapshot {
   budgetName: string;
   currency: CurrencyFormat;
   accounts: AccountDTO[];
+  accountGroups?: AccountGroupDTO[];
   transactions: TransactionDTO[];
   categories: CategoryDTO[];
   categoryGroups: CategoryGroupDTO[];

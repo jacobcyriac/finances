@@ -197,7 +197,7 @@ export function Dashboard({ onDisconnect }: { onDisconnect: () => void }) {
       </div>
 
       <Panel className="mb-6" title="Spending by category over time">
-        <CategoryTrends rows={d.spending.categoryTrends.rows} keys={d.spending.categoryTrends.keys} currency={cur} height={280} />
+        <CategoryTrends rows={d.spending.categoryTrends.rows} keys={d.spending.categoryTrends.keys} groupsByCategory={d.spending.categoryTrends.groupsByCategory} currency={cur} height={280} />
       </Panel>
 
       <div className="mb-6 grid gap-6 lg:grid-cols-2">
@@ -299,7 +299,7 @@ function ScenarioPill({ label, value, highlight, tone }: { label: string; value:
     <div
       className="rounded-xl px-3.5 py-2.5"
       style={{
-        background: highlight ? 'oklch(62% 0.2 295 / 0.14)' : 'var(--surface-2)',
+        background: highlight ? 'var(--brand-soft)' : 'var(--surface-2)',
         border: `1px solid ${highlight ? 'var(--brand)' : 'var(--line)'}`,
       }}
     >

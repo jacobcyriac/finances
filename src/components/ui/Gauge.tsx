@@ -23,8 +23,8 @@ export function Gauge({ progress, size = 200, label }: GaugeProps) {
       <svg width={size} height={size / 2 + 16}>
         <defs>
           <linearGradient id="gauge" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="oklch(55% 0.17 280)" />
-            <stop offset="100%" stopColor="oklch(72% 0.18 290)" />
+            <stop offset="0%" stopColor="var(--gauge-start)" />
+            <stop offset="100%" stopColor="var(--gauge-end)" />
           </linearGradient>
         </defs>
         <path d={arc(r)} fill="none" stroke="var(--line)" strokeWidth={stroke} strokeLinecap="round" />

@@ -6,8 +6,8 @@ import { POS, BRAND_BRIGHT } from './charts/common';
 import { formatYears, formatPct } from '../lib/format';
 import { formatMoney } from '../lib/money';
 
-const LEAN = 'oklch(72% 0.13 195)';
-const FAT = 'oklch(80% 0.13 80)';
+const LEAN = 'var(--lean)';
+const FAT = 'var(--fat)';
 
 interface Props {
   currency: CurrencyFormat;

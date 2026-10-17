@@ -28,7 +28,7 @@ export function RankList({ items, currency, colorize = false }: RankListProps) {
     <ol className="space-y-2.5">
       {top.map((item, i) => {
         const pct = (item.total / max) * 100;
-        const color = colorize ? SERIES[i % SERIES.length] : 'oklch(62% 0.2 295)';
+        const color = colorize ? SERIES[i % SERIES.length] : 'var(--brand)';
         return (
           <li key={item.id}>
             <div className="mb-1 flex items-baseline justify-between gap-3">

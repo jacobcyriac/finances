@@ -1,15 +1,39 @@
-import { useMemo, useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Bar, CartesianGrid, ComposedChart, LabelList, Line, ResponsiveContainer,
   Tooltip, XAxis, YAxis,
 } from 'recharts';
-import { getSnapshot, disconnect } from './api/client';
+import { connect, getSnapshot, updateFromServer, disconnect } from './api/client';
 import { Login } from './components/Login';
 import { Dashboard as NetWorthDashboard } from './components/Dashboard';
+import { SpendingTreemap } from './components/charts/SpendingTreemap';
+import { GroupStackedBars } from './components/charts/GroupStackedBars';
+import { ExpenseTransactionsTable } from './components/ExpenseTransactionsTable';
+import { clearSessionCredentials, loadSessionCredentials, saveSessionCredentials } from './lib/session';
+import { loadCachedSnapshot, saveCachedSnapshot } from './snapshot/cache';
 import { rollingSpending } from './analysis/rolling-spending';
 import { formatMoney, formatCompact } from './lib/money';
-import type { CurrencyFormat } from './types';
+import type { ConnectRequest, CurrencyFormat } from './types';
+
+type ThemePreference = 'system' | 'light' | 'dark';
+const THEME_STORAGE_KEY = 'finance-dashboard-theme';
+
+function getSavedTheme(): ThemePreference {
+  const value = localStorage.getItem(THEME_STORAGE_KEY);
+  return value === 'light' || value === 'dark' ? value : 'system';
+}
+
+function ThemeControl({ value, onChange }: { value: ThemePreference; onChange: (value: ThemePreference) => void }) {
+  return <label className="theme-control">
+    <span>Theme</span>
+    <select className="theme-select" value={value} onChange={(event) => onChange(event.target.value as ThemePreference)} aria-label="Color theme">
+      <option value="system">System</option>
+      <option value="light">Light</option>
+      <option value="dark">Dark</option>
+    </select>
+  </label>;
+}
 
 const monthName = (key: string, options: Intl.DateTimeFormatOptions = { month: 'short', year: '2-digit' }) =>
   new Date(`${key}-01T12:00:00`).toLocaleDateString(undefined, options);
@@ -20,9 +44,16 @@ function TotalLabel(props: { x?: string | number; y?: string | number; value?: s
   const y = Number(props.y);
   const value = Number(props.value);
   if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(value)) return null;
-  return <text x={x} y={y - 5} textAnchor="middle" fill="#c6c8d4" fontSize={10}>
+  return <text x={x} y={y - 5} textAnchor="middle" fill="var(--chart-total-label)" fontSize={10}>
     {formatCompact(value, props.currency)}
   </text>;
+}
+
+function groupFill(colorToken: string): string {
+  const named = colorToken.match(/--(spend-[a-z-]+)/)?.[1];
+  if (named) return `var(--${named}-tile)`;
+  const series = colorToken.match(/--series-(\d+)/)?.[1] ?? '1';
+  return `var(--treemap-series-${series})`;
 }
 
 function MetricCard({ label, value, detail, color }: { label: string; value: string; detail: string; color?: string }) {
@@ -34,12 +65,20 @@ function MetricCard({ label, value, detail, color }: { label: string; value: str
 }
 
 function SpendingDashboard({ snapshot, onDisconnect }: { snapshot: NonNullable<Awaited<ReturnType<typeof getSnapshot>>>; onDisconnect: () => void }) {
+  const [spendingView, setSpendingView] = useState<'treemap' | 'bars'>('treemap');
   const period = useMemo(() => rollingSpending(snapshot), [snapshot]);
   const currency = snapshot.currency;
   const fmt = (value: number) => formatMoney(value, currency);
   const disconnectMutation = useMutation({ mutationFn: disconnect, onSuccess: onDisconnect });
-  const data = period.months.map((month) => ({ ...month, label: monthName(month.month) }));
-  const categoryNames = new Map(period.categories.map((category) => [category.id, category.name]));
+  const data = period.months.map((month) => ({
+    ...month,
+    label: monthName(month.month),
+    groups: Object.fromEntries(period.groups.map((group) => [
+      group.id,
+      group.categories.reduce((sum, category) => sum + (month.categories[category.id] ?? 0), 0),
+    ])),
+  }));
+  const groupNames = new Map(period.groups.map((group) => [group.id, group.name]));
 
   return <main className="dashboard-shell">
     <header className="page-header">
@@ -54,64 +93,76 @@ function SpendingDashboard({ snapshot, onDisconnect }: { snapshot: NonNullable<A
       </div>
     </header>
 
-    <section className="metric-grid" aria-label="12-month spending summary">
-      <MetricCard label="Housing" value={fmt(period.totals.housing)} detail="12-month total" color="#76a8f5" />
-      <MetricCard label="Food" value={fmt(period.totals.food)} detail="12-month total" color="#55c4a6" />
-      <MetricCard label="Travel" value={fmt(period.totals.travel)} detail="12-month total" color="#f0aa65" />
-      <MetricCard label="Total spending" value={fmt(period.totals.total)} detail="All included categories" />
-      <MetricCard label="Monthly average" value={fmt(period.totals.average)} detail="Total divided by 12" />
+    <section className="spending-summary" aria-label="12-month spending summary">
+      <div className="metric-grid metric-grid-overview">
+        <MetricCard label="Total spending" value={fmt(period.totals.total)} detail="All included categories" />
+        <MetricCard label="Monthly average" value={fmt(period.totals.average)} detail="Total divided by 12" />
+      </div>
+      <div className="metric-grid metric-grid-groups" aria-label="Spending by category group">
+        {period.groups.map((group) => <MetricCard
+          key={group.id}
+          label={group.name}
+          value={fmt(group.total)}
+          detail="12-month total"
+          color={group.color}
+        />)}
+      </div>
+    </section>
+
+    <section className="panel chart-panel treemap-panel">
+      <div className="section-heading">
+        <div>
+          <h2>Spending by group &amp; category</h2>
+          <p>{spendingView === 'treemap' ? 'Group columns · category tiles sized by 12-month net spending' : 'Horizontal stacked bars · category segments sized within each group'}</p>
+        </div>
+        <div className="spending-view-toggle" role="group" aria-label="Spending chart view">
+          <button type="button" aria-label="Treemap view" title="Treemap view" aria-pressed={spendingView === 'treemap'} onClick={() => setSpendingView('treemap')}>
+            <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="2.5" width="9" height="7" rx="1"/><rect x="12.5" y="2.5" width="5" height="4" rx="1"/><rect x="12.5" y="7.5" width="5" height="10" rx="1"/><rect x="2.5" y="10.5" width="9" height="7" rx="1"/></svg>
+          </button>
+          <button type="button" aria-label="Stacked bar view" title="Stacked bar view" aria-pressed={spendingView === 'bars'} onClick={() => setSpendingView('bars')}>
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 4.5h5v3h-5zM7.5 4.5h7v3h-7zM14.5 4.5h3v3h-3zM2.5 9.5h3v3h-3zM5.5 9.5h8v3h-8zM13.5 9.5h4v3h-4zM2.5 14.5h7v3h-7zM9.5 14.5h4v3h-4zM13.5 14.5h4v3h-4z"/></svg>
+          </button>
+        </div>
+      </div>
+      {spendingView === 'treemap'
+        ? <SpendingTreemap groups={period.groups} currency={currency} />
+        : <GroupStackedBars groups={period.groups} currency={currency} />}
     </section>
 
     <section className="panel chart-panel">
       <div className="section-heading">
-        <div><h2>Monthly spending</h2><p>Stacked by category · refunds reduce the category they belong to</p></div>
+        <div><h2>Monthly spending</h2><p>Stacked by group · refunds reduce the group they belong to</p></div>
         <div className="chart-total">{fmt(period.totals.total)} <span>12 months</span></div>
       </div>
-      {period.categories.length === 0 ? <div className="empty-chart">No eligible expenses were found in this period.</div> : <>
+      {period.groups.length === 0 ? <div className="empty-chart">No eligible expenses were found in this period.</div> : <>
         <div className="chart-wrap">
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={data} margin={{ top: 34, right: 10, left: 8, bottom: 4 }}>
-              <CartesianGrid vertical={false} stroke="rgba(170,175,200,.12)" />
+              <CartesianGrid vertical={false} stroke="var(--chart-grid)" />
               <XAxis dataKey="label" axisLine={false} tickLine={false} tickMargin={12} />
               <YAxis axisLine={false} tickLine={false} width={56} tickFormatter={(value) => formatCompact(value, currency)} />
               <Tooltip
-                cursor={{ fill: 'rgba(160,165,190,.07)' }}
-                formatter={(value, name) => [fmt(Number(value ?? 0)), categoryNames.get(String(name)) ?? String(name)]}
+                cursor={{ fill: 'var(--chart-cursor)' }}
+                formatter={(value, name) => [fmt(Number(value ?? 0)), groupNames.get(String(name)) ?? String(name)]}
                 labelFormatter={(_, payload) => payload?.[0]?.payload?.month ? monthName(payload[0].payload.month, { month: 'long', year: 'numeric' }) : ''}
-                contentStyle={{ background: '#20232c', border: '1px solid #3c414e', borderRadius: 12, color: '#f4f4f8' }}
+                contentStyle={{ background: 'var(--tooltip-bg)', border: '1px solid var(--tooltip-border)', borderRadius: 12, color: 'var(--text)' }}
               />
-              {period.categories.map((category) => <Bar key={category.id} dataKey={`categories.${category.id}`} name={category.id} stackId="spend" fill={category.color} maxBarSize={38} isAnimationActive={false} />)}
+              {period.groups.map((group) => <Bar key={group.id} dataKey={`groups.${group.id}`} name={group.id} stackId="spend" fill={groupFill(group.color)} maxBarSize={38} isAnimationActive={false} />)}
               <Line type="monotone" dataKey="total" stroke="transparent" dot={false} activeDot={false} isAnimationActive={false}>
                 <LabelList dataKey="total" content={(props) => <TotalLabel {...props} currency={currency} />} />
               </Line>
             </ComposedChart>
           </ResponsiveContainer>
         </div>
-        <div className="legend-list" aria-label="Category colors">
-          {period.categories.map((category) => <span key={category.id}><i style={{ background: category.color }} />{category.name}</span>)}
+        <div className="legend-list" aria-label="Spending group colors">
+          {period.groups.map((group) => <span key={group.id}><i style={{ background: groupFill(group.color) }} />{group.name}</span>)}
         </div>
       </>}
     </section>
 
-    <section className="panel table-panel">
-      <div className="section-heading">
-        <div><h2>Monthly detail</h2><p>Amounts shown as positive net spending; refunds are deducted.</p></div>
-      </div>
-      <div className="table-scroll">
-        <table>
-          <thead><tr><th>Month</th>{period.categories.map((category) => <th key={category.id} className="numeric">{category.name}</th>)}<th className="numeric total-col">Total</th></tr></thead>
-          <tbody>{data.map((month) => <tr key={month.month}>
-            <th scope="row">{monthName(month.month, { month: 'long', year: 'numeric' })}</th>
-            {period.categories.map((category) => <td className="numeric" key={category.id}>{fmt(month.categories[category.id] ?? 0)}</td>)}
-            <td className="numeric total-col">{fmt(month.total)}</td>
-          </tr>)}</tbody>
-          <tfoot><tr><th scope="row">12-month total</th>{period.categories.map((category) => <td className="numeric" key={category.id}>{fmt(period.months.reduce((sum, month) => sum + (month.categories[category.id] ?? 0), 0))}</td>)}<td className="numeric total-col">{fmt(period.totals.total)}</td></tr></tfoot>
-        </table>
-      </div>
-      <div className="footnote">Income and starting balance categories, transfers, and transactions tagged <code>#noise</code> or <code>#payment</code> are excluded. Uncategorized expenses are included.</div>
-    </section>
+    <ExpenseTransactionsTable snapshot={snapshot} />
 
-    <footer>Read-only analysis · Data is processed in this browser · Last loaded {new Date(snapshot.generatedAt).toLocaleString()}</footer>
+  <footer>Read-only analysis · Data is processed in this browser</footer>
   </main>;
 }
 
@@ -120,40 +171,128 @@ function LoadingNote() {
 }
 
 export default function App() {
-  const [connected, setConnected] = useState(false);
+  const queryClient = useQueryClient();
+  const [session, setSession] = useState(() => {
+    const credentials = loadSessionCredentials();
+    return { credentials, connected: Boolean(credentials) };
+  });
+  const [cacheReady, setCacheReady] = useState(false);
+  const apiConnected = useRef(false);
+  const skipNextUpdate = useRef(false);
   const [activeTab, setActiveTab] = useState<'expenses' | 'net-worth'>('expenses');
-  const { data: snapshot, isLoading, error } = useQuery({ queryKey: ['snapshot'], queryFn: getSnapshot, enabled: connected });
-  if (!connected) return <Login onConnected={() => setConnected(true)} />;
-  if (isLoading) return <LoadingNote />;
-  if (error || !snapshot) return <div className="center-note">Could not load the budget snapshot. Disconnect and reconnect to try again.</div>;
+  const [theme, setTheme] = useState<ThemePreference>(getSavedTheme);
+  useEffect(() => {
+    if (theme === 'system') document.documentElement.removeAttribute('data-theme');
+    else document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem(THEME_STORAGE_KEY, theme);
+  }, [theme]);
+  useEffect(() => {
+    let active = true;
+    void loadCachedSnapshot().then((cached) => {
+      if (!active) return;
+      if (cached) queryClient.setQueryData(['snapshot'], cached);
+      setCacheReady(true);
+    });
+    return () => { active = false; };
+  }, [queryClient]);
+  const { data: snapshot, isLoading, isFetching, error, refetch } = useQuery({
+    queryKey: ['snapshot'],
+    queryFn: async () => {
+      if (session.credentials) {
+        if (!apiConnected.current) {
+          await connect(session.credentials);
+          apiConnected.current = true;
+        } else if (skipNextUpdate.current) {
+          // The login form already synchronized the budget before opening the dashboard.
+          skipNextUpdate.current = false;
+        } else {
+          await updateFromServer();
+        }
+      }
+      const latest = await getSnapshot();
+      if (session.credentials) await saveCachedSnapshot(latest).catch(() => {});
+      return latest;
+    },
+    enabled: session.connected && cacheReady,
+    staleTime: 0,
+    refetchOnWindowFocus: false,
+  });
+  const onConnected = (credentials: ConnectRequest | null) => {
+    if (credentials) {
+      saveSessionCredentials(credentials);
+      apiConnected.current = true; // Login has already downloaded and synchronized the budget.
+      skipNextUpdate.current = true;
+    } else {
+      clearSessionCredentials(); // Demo and file import connections have no server login to resume.
+      apiConnected.current = false;
+      skipNextUpdate.current = false;
+    }
+    setSession({ credentials, connected: true });
+  };
+  const onDisconnect = () => {
+    clearSessionCredentials();
+    apiConnected.current = false;
+    skipNextUpdate.current = false;
+    setSession({ credentials: null, connected: false });
+  };
+  if (!session.connected) return <>
+    <div className="login-theme-control"><ThemeControl value={theme} onChange={setTheme} /></div>
+    <Login onConnected={onConnected} />
+  </>;
+  if (!cacheReady || (isLoading && !snapshot)) return <LoadingNote />;
+  if (!snapshot) return <div className="center-note">
+    <div className="center-note-content">
+      <p>{session.credentials ? (error as Error)?.message ?? 'Could not reconnect to your budget.' : 'Could not load the budget snapshot.'}</p>
+      <button className="btn-ghost" onClick={onDisconnect}>Return to sign in</button>
+    </div>
+  </div>;
+  const refreshLabel = new Date(snapshot.generatedAt).toLocaleString();
   return <>
     <nav className="app-tabs" aria-label="Dashboard sections">
-      <div className="app-tab-list" role="tablist" aria-label="Financial dashboards">
-        <button
-          id="expenses-tab"
-          className="app-tab"
-          type="button"
-          role="tab"
-          aria-selected={activeTab === 'expenses'}
-          aria-controls="expenses-panel"
-          onClick={() => setActiveTab('expenses')}
-        >Expenses</button>
-        <button
-          id="net-worth-tab"
-          className="app-tab"
-          type="button"
-          role="tab"
-          aria-selected={activeTab === 'net-worth'}
-          aria-controls="net-worth-panel"
-          onClick={() => setActiveTab('net-worth')}
-        >Net Worth</button>
+      <div className="app-toolbar">
+        <div className="app-tab-list" role="tablist" aria-label="Financial dashboards">
+          <button
+            id="expenses-tab"
+            className="app-tab"
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'expenses'}
+            aria-controls="expenses-panel"
+            onClick={() => setActiveTab('expenses')}
+          >Expenses</button>
+          <button
+            id="net-worth-tab"
+            className="app-tab"
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'net-worth'}
+            aria-controls="net-worth-panel"
+            onClick={() => setActiveTab('net-worth')}
+          >Net Worth</button>
+        </div>
+        <ThemeControl value={theme} onChange={setTheme} />
+        <div className="refresh-controls">
+          <div className="refresh-copy" aria-live="polite">
+            <span className={`refresh-status${error ? ' is-error' : ''}`}>
+              {isFetching ? 'Updating from Actual…' : error ? 'Update failed · showing saved data' : 'Ready'}
+            </span>
+            <span className="refresh-time">Last refreshed {refreshLabel}</span>
+          </div>
+          <button
+            className="btn-ghost update-button"
+            type="button"
+            onClick={() => void refetch()}
+            disabled={!session.credentials || isFetching}
+            title={session.credentials ? 'Sync the latest data from Actual' : 'Connect to Actual to refresh this data'}
+          >{isFetching ? 'Updating…' : 'Update'}</button>
+        </div>
       </div>
     </nav>
     <section id="expenses-panel" className="app-tabpanel" role="tabpanel" aria-labelledby="expenses-tab" hidden={activeTab !== 'expenses'}>
-      <SpendingDashboard snapshot={snapshot} onDisconnect={() => setConnected(false)} />
+      <SpendingDashboard snapshot={snapshot} onDisconnect={onDisconnect} />
     </section>
     <section id="net-worth-panel" className="app-tabpanel" role="tabpanel" aria-labelledby="net-worth-tab" hidden={activeTab !== 'net-worth'}>
-      <NetWorthDashboard onDisconnect={() => setConnected(false)} />
+      <NetWorthDashboard onDisconnect={onDisconnect} />
     </section>
   </>;
 }

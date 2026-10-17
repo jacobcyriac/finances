@@ -14,6 +14,7 @@ import type {
 // The raw shapes are the package's own return types, so this app can't drift
 // from the published API.
 export type RawAccount = Awaited<ReturnType<typeof api.getAccounts>>[number];
+export type RawAccountGroup = Awaited<ReturnType<typeof api.getAccountGroups>>[number];
 export type RawTxn = Awaited<ReturnType<typeof api.getTransactions>>[number];
 export type RawCategory = Awaited<ReturnType<typeof api.getCategories>>[number];
 export type RawGroup = Awaited<ReturnType<typeof api.getCategoryGroups>>[number];
@@ -53,6 +54,7 @@ export interface RawData {
   budgetName: string;
   currency: CurrencyFormat;
   accounts: RawAccount[];
+  accountGroups: RawAccountGroup[];
   balances: Record<string, number>;
   transactions: RawTxn[];
   categories: RawCategory[];
@@ -106,6 +108,7 @@ export function toSnapshot(raw: RawData): Snapshot {
   const accounts: AccountDTO[] = raw.accounts.map((a) => ({
     id: a.id,
     name: a.name,
+    account_group_id: a.account_group_id ?? null,
     offbudget: Boolean(a.offbudget),
     closed: Boolean(a.closed),
     balance: raw.balances[a.id] ?? a.balance_current ?? 0,
@@ -117,6 +120,8 @@ export function toSnapshot(raw: RawData): Snapshot {
     group_id: c.group_id,
     is_income: Boolean(c.is_income),
   }));
+
+  const accountGroups = raw.accountGroups.map((group) => ({ id: group.id, name: group.name }));
 
   const categoryGroups: CategoryGroupDTO[] = raw.categoryGroups.map((g) => ({
     id: g.id,
@@ -134,6 +139,7 @@ export function toSnapshot(raw: RawData): Snapshot {
     budgetName: raw.budgetName,
     currency: raw.currency,
     accounts,
+    accountGroups,
     transactions: flattenTransactions(raw.transactions),
     categories,
     categoryGroups,

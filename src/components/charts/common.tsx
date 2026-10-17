@@ -3,18 +3,18 @@ import { formatMoney } from '../../lib/money';
 
 /** Purple-led data series ramp (used for stacked/multi series). */
 export const SERIES = [
-  'oklch(70% 0.19 290)',
-  'oklch(62% 0.2 295)',
-  'oklch(55% 0.17 280)',
-  'oklch(66% 0.16 320)',
-  'oklch(60% 0.13 250)',
-  'oklch(74% 0.13 200)',
+  'var(--series-1)',
+  'var(--series-2)',
+  'var(--series-3)',
+  'var(--series-4)',
+  'var(--series-5)',
+  'var(--series-6)',
 ];
 
-export const POS = 'oklch(72% 0.16 155)';
-export const NEG = 'oklch(66% 0.2 25)';
-export const BRAND = 'oklch(62% 0.2 295)';
-export const BRAND_BRIGHT = 'oklch(70% 0.19 290)';
+export const POS = 'var(--pos)';
+export const NEG = 'var(--neg)';
+export const BRAND = 'var(--brand)';
+export const BRAND_BRIGHT = 'var(--brand-bright)';
 
 interface TooltipRow {
   name?: string;
@@ -35,7 +35,7 @@ export function makeCurrencyTooltip(currency: CurrencyFormat, labelMap?: (l: str
   }) {
     if (!active || !payload || payload.length === 0) return null;
     return (
-      <div className="panel-2 px-3 py-2 text-xs shadow-lg" style={{ background: 'var(--bg-2)' }}>
+      <div className="panel-2 tooltip-shadow px-3 py-2 text-xs" style={{ background: 'var(--bg-2)' }}>
         {label != null && (
           <div className="mb-1.5 font-semibold text-[var(--text)]">
             {labelMap ? labelMap(label) : label}

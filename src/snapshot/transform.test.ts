@@ -35,9 +35,10 @@ describe('toSnapshot', () => {
     budgetName: 'My Budget',
     currency: currencyFromPrefs({ defaultCurrencyCode: 'eur' }),
     accounts: [
-      { id: 'a', name: 'Checking', offbudget: false, closed: false, balance_current: 111 },
+      { id: 'a', name: 'Checking', offbudget: false, closed: false, balance_current: 111, account_group_id: 'jacob' },
       { id: 'b', name: 'Brokerage', offbudget: true, closed: false },
     ],
+    accountGroups: [{ id: 'jacob', name: 'Jacob' }],
     balances: { a: 100000, b: 500000 },
     transactions: [{ id: 't', account: 'a', date: '2026-01-01', amount: -100, transfer_id: 'x' }],
     categories: [{ id: 'c', name: 'Food', group_id: 'g', is_income: false }],

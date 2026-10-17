@@ -11,27 +11,68 @@ export interface SpendingMonth {
 export interface SpendingCategory {
   id: string;
   name: string;
+  groupId: string;
   group: string;
   color: string;
+}
+
+export interface SpendingGroup {
+  id: string;
+  name: string;
+  total: number;
+  color: string;
+  categories: { id: string; name: string; total: number }[];
 }
 
 export interface RollingSpending {
   months: SpendingMonth[];
   categories: SpendingCategory[];
+  groups: SpendingGroup[];
   totals: { housing: number; food: number; travel: number; total: number; average: number };
   startMonth: string;
   endMonth: string;
 }
 
 const COLORS = [
-  '#7c83ff', '#49b8a3', '#f2a65a', '#e47791', '#68a6e8', '#b28de0',
-  '#d4be62', '#4aa4a1', '#da7e53', '#8da85d', '#cf71c3', '#8492a6',
+  'var(--series-1)', 'var(--series-2)', 'var(--series-3)', 'var(--series-4)',
+  'var(--series-5)', 'var(--series-6)', 'var(--series-7)', 'var(--series-8)',
+  'var(--series-9)', 'var(--series-10)', 'var(--series-11)', 'var(--series-12)',
 ];
 
 function fixedColor(id: string): string {
   let hash = 2166136261;
   for (const char of id) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);
   return COLORS[(hash >>> 0) % COLORS.length];
+}
+
+function groupColor(name: string, index: number): string {
+  const normalized = name.toLowerCase();
+  if (/bill/.test(normalized)) return 'var(--spend-bills)';
+  if (/travel|vacation/.test(normalized)) return 'var(--spend-travel)';
+  if (/other/.test(normalized)) return 'var(--spend-other)';
+  if (/grocer/.test(normalized)) return 'var(--spend-grocery)';
+  if (/dining|restaurant|eating/.test(normalized)) return 'var(--spend-dining)';
+  if (/food|grocer|dining|restaurant|eating/.test(normalized)) return 'var(--spend-food)';
+  if (/rent|housing|home/.test(normalized)) return 'var(--spend-rent)';
+  return COLORS[index % COLORS.length];
+}
+
+function categoryColor(id: string, name: string): string {
+  return fixedColor(id);
+}
+
+export function spendingGroupColor(name: string, index = 0): string {
+  return groupColor(name, index);
+}
+
+function groupOrder(name: string): number {
+  const normalized = name.toLowerCase();
+  if (/rent|housing|home/.test(normalized)) return 0;
+  if (/bill/.test(normalized)) return 1;
+  if (/other/.test(normalized)) return 2;
+  if (/food|grocer|dining|restaurant|eating/.test(normalized)) return 3;
+  if (/travel|vacation/.test(normalized)) return 4;
+  return 5;
 }
 
 function isStartingBalance(name: string): boolean {
@@ -63,6 +104,7 @@ export function rollingSpending(snap: Snapshot, now = new Date()): RollingSpendi
   const idx = buildIndexes(snap);
   const onBudgetAccounts = new Set(snap.accounts.filter((account) => !account.offbudget).map((account) => account.id));
   const groupById = new Map(snap.categoryGroups.map((group) => [group.id, group]));
+  const otherGroup = snap.categoryGroups.find((group) => !group.is_income && /^other$/i.test(group.name.trim()));
   const categoryInfo = new Map<string, SpendingCategory>();
 
   for (const tx of snap.transactions) {
@@ -75,7 +117,7 @@ export function rollingSpending(snap: Snapshot, now = new Date()): RollingSpendi
     const group = category ? groupById.get(category.group_id) : undefined;
     if (category?.is_income || group?.is_income) continue;
     const name = category?.name ?? 'Uncategorized';
-    const groupName = group?.name ?? 'Uncategorized';
+    const groupName = group?.name ?? 'Other';
     if (isStartingBalance(name) || isStartingBalance(groupName)) continue;
     // Uncategorized positive transactions are normally income. Categorized positive
     // transactions remain in the expense series so refunds reduce net spending.
@@ -85,8 +127,9 @@ export function rollingSpending(snap: Snapshot, now = new Date()): RollingSpendi
     if (!categoryInfo.has(id)) categoryInfo.set(id, {
       id,
       name,
+      groupId: category?.group_id ?? otherGroup?.id ?? 'other',
       group: groupName,
-      color: fixedColor(id),
+      color: categoryColor(id, name),
     });
     const categoryNetExpense = -tx.amount;
     month.categories[id] = (month.categories[id] ?? 0) + categoryNetExpense;
@@ -94,10 +137,41 @@ export function rollingSpending(snap: Snapshot, now = new Date()): RollingSpendi
   }
 
   const categories = [...categoryInfo.values()].sort((a, b) => a.group.localeCompare(b.group) || a.name.localeCompare(b.name));
+  const groupNames = new Map(
+    snap.categoryGroups
+      .filter((group) => !group.is_income && !isStartingBalance(group.name))
+      .map((group) => [group.id, group.name]),
+  );
+  const groupTotals = new Map([...groupNames.keys()].map((id) => [id, 0]));
+  for (const category of categories) {
+    const categoryTotal = months.reduce((sum, month) => sum + (month.categories[category.id] ?? 0), 0);
+    if (category.groupId === 'uncategorized') {
+      groupNames.set('uncategorized', 'Uncategorized');
+      groupTotals.set('uncategorized', (groupTotals.get('uncategorized') ?? 0) + categoryTotal);
+    } else {
+      groupNames.set(category.groupId, category.group);
+      groupTotals.set(category.groupId, (groupTotals.get(category.groupId) ?? 0) + categoryTotal);
+    }
+  }
+  const groups = [...groupTotals].map(([id, total], index) => ({
+    id,
+    name: groupNames.get(id) ?? 'Other',
+    total,
+    color: groupColor(groupNames.get(id) ?? 'Other', index),
+    categories: categories
+      .filter((category) => category.groupId === id)
+      .map((category) => ({
+        id: category.id,
+        name: category.name,
+        total: months.reduce((sum, month) => sum + (month.categories[category.id] ?? 0), 0),
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
+  })).sort((a, b) => groupOrder(a.name) - groupOrder(b.name) || a.name.localeCompare(b.name));
   const total = months.reduce((sum, month) => sum + month.total, 0);
   return {
     months,
     categories,
+    groups,
     totals: {
       housing: sumGroups(months, categories, (group) => /housing|home/i.test(group)),
       food: sumGroups(months, categories, foodGroup),

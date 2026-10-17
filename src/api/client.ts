@@ -2,6 +2,7 @@ import type { Snapshot, ConnectRequest, ApiErrorCode, CodedError } from '../type
 import {
   connectBrowser,
   importZip as importZipBrowser,
+  syncBrowser,
   shutdownBrowser,
 } from '../snapshot/actual-browser';
 import { buildDemoSnapshot } from '../snapshot/demo';
@@ -49,6 +50,11 @@ async function load(read: () => Promise<Snapshot>, messages: Record<string, stri
 
 export async function connect(form: ConnectRequest): Promise<void> {
   await load(() => connectBrowser(form), CONNECT_MESSAGES);
+}
+
+export async function updateFromServer(): Promise<void> {
+  if (!connectedViaApi) return;
+  await load(() => syncBrowser(), CONNECT_MESSAGES);
 }
 
 export async function importZip(file: File): Promise<void> {

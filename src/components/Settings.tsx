@@ -76,7 +76,7 @@ export function Settings({ snapshot, settings, trailing12, onChange, onClose }: 
               className="px-2.5 py-1.5 text-xs font-medium transition"
               style={{
                 background: active ? 'var(--brand)' : 'transparent',
-                color: active ? 'white' : 'var(--text-dim)',
+                color: active ? 'var(--on-brand)' : 'var(--text-dim)',
               }}
             >
               {c.label}
@@ -91,7 +91,7 @@ export function Settings({ snapshot, settings, trailing12, onChange, onClose }: 
     <div className="fixed inset-0 z-50 flex justify-end">
       <div
         className="absolute inset-0"
-        style={{ background: 'oklch(8% 0.01 295 / 0.6)', backdropFilter: 'blur(2px)' }}
+        style={{ background: 'var(--overlay)', backdropFilter: 'blur(2px)' }}
         onClick={onClose}
       />
       <aside
@@ -301,7 +301,7 @@ function Switch({ on }: { on: boolean }) {
       style={{ background: on ? 'var(--brand)' : 'var(--line-strong)' }}
     >
       <span
-        className="absolute top-0.5 h-3 w-3 rounded-full bg-white transition"
+        className="absolute top-0.5 h-3 w-3 rounded-full bg-[var(--on-brand)] transition"
         style={{ left: on ? 'calc(100% - 0.875rem)' : '0.125rem' }}
       />
     </span>

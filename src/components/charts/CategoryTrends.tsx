@@ -11,16 +11,18 @@ import {
 import type { CurrencyFormat } from '../../types';
 import { formatCompact } from '../../lib/money';
 import { SERIES, makeCurrencyTooltip, monthLabel } from './common';
+import { spendingGroupColor } from '../../analysis/rolling-spending';
 
 interface Props {
   rows: Record<string, number | string>[];
   keys: string[];
+  groupsByCategory?: Record<string, string>;
   currency: CurrencyFormat;
   height?: number;
 }
 
 /** Stacked area of spend per top category over time. */
-export function CategoryTrends({ rows, keys, currency, height = 260 }: Props) {
+export function CategoryTrends({ rows, keys, groupsByCategory = {}, currency, height = 260 }: Props) {
   const Tip = makeCurrencyTooltip(currency, monthLabel);
   return (
     <ResponsiveContainer width="100%" height={height}>
@@ -40,8 +42,8 @@ export function CategoryTrends({ rows, keys, currency, height = 260 }: Props) {
             type="monotone"
             dataKey={k}
             stackId="1"
-            stroke={SERIES[i % SERIES.length]}
-            fill={SERIES[i % SERIES.length]}
+            stroke={groupsByCategory[k] ? spendingGroupColor(groupsByCategory[k], i) : SERIES[i % SERIES.length]}
+            fill={groupsByCategory[k] ? spendingGroupColor(groupsByCategory[k], i) : SERIES[i % SERIES.length]}
             fillOpacity={0.5}
             strokeWidth={1.5}
           />

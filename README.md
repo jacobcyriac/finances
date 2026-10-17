@@ -12,7 +12,9 @@ yarn install
 yarn dev
 ```
 
-Open the local Vite address and choose **Try the demo** to see synthetic data, or connect using the server password and optional end-to-end encryption key. Your server URL and Sync ID are set in `src/config.ts`, so the form does not ask for them. The password and encryption key are held in page state and are not saved. Actual's browser engine stores its downloaded budget cache in this browser's IndexedDB on this device.
+Open the local Vite address and choose **Try the demo** to see synthetic data, or connect using the server password and optional end-to-end encryption key. Your server URL and Sync ID are set in `src/config.ts`, so the form does not ask for them. After a successful connection, the password and encryption key are kept in this tab's `sessionStorage` so a reload can reconnect; Disconnect clears them, and closing the tab ends the session. Scripts running on this dashboard origin can access browser session storage.
+
+The dashboard also saves the latest read-only snapshot in IndexedDB. On reload, it displays that cached snapshot immediately, then reconnects and refreshes from Actual in the background. The header shows the last successful refresh and has an **Update** button. If the update fails, the cached snapshot remains visible. Actual's browser engine separately stores its downloaded budget cache in IndexedDB on this device.
 
 The server password is the password used to sign in to Actual; enter the encryption key only when the budget uses end-to-end encryption. The server URL and Sync ID in `src/config.ts` are included in the built JavaScript and are visible to anyone who can access the dashboard. Keep the password and encryption key out of source files and the repository.
 
@@ -22,7 +24,7 @@ The server password is the password used to sign in to Actual; enter the encrypt
 - Outflows display as positive expenses. Positive transactions in expense categories offset spending as refunds.
 - Excludes income and starting-balance categories, transfers, off-budget accounts, and transactions whose notes contain `#noise` or `#payment`.
 - Includes uncategorized outflows.
-- Housing, Food, Travel, total spending, and monthly average KPIs use the same filtered transaction set.
+- Total spending and monthly average appear first, followed by one KPI card for each non-income category group with Uncategorized shown as its own group when present. Group cards use the same filtered transaction set.
 - The app only calls Actual read methods. It never changes the budget.
 
 Category colors are deterministic for each category ID and remain the same between reloads.

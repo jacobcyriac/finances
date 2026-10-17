@@ -17,7 +17,7 @@ const FIELDS: {
   { key: 'encryptionKey', label: 'End-to-end encryption key', type: 'password', placeholder: 'Only if your file is encrypted', optional: true },
 ];
 
-export function Login({ onConnected }: { onConnected: () => void }) {
+export function Login({ onConnected }: { onConnected: (credentials: ConnectRequest | null) => void }) {
   const qc = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState<ConnectRequest>(() => ({
@@ -27,24 +27,24 @@ export function Login({ onConnected }: { onConnected: () => void }) {
     encryptionKey: '',
   }));
 
-  const done = () => {
+  const done = (credentials: ConnectRequest | null = null) => {
     qc.invalidateQueries({ queryKey: ['snapshot'] });
-    onConnected();
+    onConnected(credentials);
   };
 
   const mutation = useMutation({
-    mutationFn: () => connect(form),
-    onSuccess: done,
+    mutationFn: (credentials: ConnectRequest) => connect(credentials),
+    onSuccess: (_data, credentials) => done(credentials),
   });
 
   const demoMutation = useMutation({
     mutationFn: () => tryDemo(),
-    onSuccess: done,
+    onSuccess: () => done(null),
   });
 
   const importMutation = useMutation({
     mutationFn: (file: File) => importZip(file),
-    onSuccess: done,
+    onSuccess: () => done(null),
   });
 
   const busy =
@@ -56,8 +56,8 @@ export function Login({ onConnected }: { onConnected: () => void }) {
       <div className="w-full max-w-md rise">
         <div className="mb-8 text-center">
           <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-2xl"
-            style={{ background: 'linear-gradient(180deg, var(--brand-bright), var(--brand-deep))', boxShadow: '0 8px 30px -8px oklch(62% 0.2 295 / 0.7)' }}>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round">
+            style={{ background: 'var(--brand-gradient)', boxShadow: '0 8px 30px -8px var(--brand-shadow-strong)' }}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--on-brand)" strokeWidth="2.2" strokeLinecap="round">
               <path d="M4 19V9m5 10V5m5 14v-7m5 7V8" />
             </svg>
           </div>
@@ -71,7 +71,7 @@ export function Login({ onConnected }: { onConnected: () => void }) {
           className="panel space-y-4 p-6"
           onSubmit={(e) => {
             e.preventDefault();
-            if (canSubmit) mutation.mutate();
+            if (canSubmit) mutation.mutate(form);
           }}
         >
           {FIELDS.map((f) => (
@@ -167,9 +167,10 @@ export function Login({ onConnected }: { onConnected: () => void }) {
         </div>
 
         <p className="mt-5 text-center text-[11px] leading-relaxed text-[var(--text-faint)]">
-          Your password and encryption key are sent only to your configured Actual server.
-          Budget data is decrypted and analyzed in this browser. Actual's browser engine
-          keeps its local budget cache in this browser's storage on this device.
+          To reconnect after a refresh, this tab keeps your password and optional encryption key
+          in session storage. Disconnect clears them; closing the tab ends the session. Scripts
+          running on this dashboard origin can access browser session storage. Budget data stays
+          in this browser, and the Actual engine keeps its local cache on this device.
         </p>
 
         <p className="mt-3 text-center text-[11px] text-[var(--text-faint)]">
@@ -195,7 +196,7 @@ function ErrorNote({ error, className = '' }: { error: unknown; className?: stri
   return (
     <div
       className={`rounded-[0.7rem] px-3.5 py-2.5 text-sm ${className}`}
-      style={{ background: 'oklch(66% 0.2 25 / 0.12)', border: '1px solid oklch(66% 0.2 25 / 0.4)', color: 'oklch(82% 0.12 25)' }}
+      style={{ background: 'var(--error-bg)', border: '1px solid var(--error-border)', color: 'var(--error-text)' }}
     >
       {(error as Error).message}
     </div>
@@ -205,8 +206,8 @@ function ErrorNote({ error, className = '' }: { error: unknown; className?: stri
 function Spinner() {
   return (
     <svg className="animate-spin" width="15" height="15" viewBox="0 0 24 24" fill="none">
-      <circle cx="12" cy="12" r="9" stroke="white" strokeOpacity="0.3" strokeWidth="3" />
-      <path d="M21 12a9 9 0 0 0-9-9" stroke="white" strokeWidth="3" strokeLinecap="round" />
+      <circle cx="12" cy="12" r="9" stroke="var(--on-brand)" strokeOpacity="0.3" strokeWidth="3" />
+      <path d="M21 12a9 9 0 0 0-9-9" stroke="var(--on-brand)" strokeWidth="3" strokeLinecap="round" />
     </svg>
   );
 }
