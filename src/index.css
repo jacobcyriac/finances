@@ -345,7 +345,7 @@ body {
 
 /* Focused spending dashboard */
 .dashboard-shell { max-width: 1380px; margin: 0 auto; padding: 42px 32px 30px; }
-.page-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 28px; }
+.page-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 28px; padding-inline: 24px; }
 .page-header h1 { margin: 9px 0 0; font-size: clamp(27px, 3vw, 38px); letter-spacing: -0.04em; line-height: 1.1; }
 .eyebrow { display: flex; align-items: center; gap: 9px; color: var(--text-dim); font-size: 11px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
 .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--status-online); box-shadow: 0 0 12px var(--status-glow); }
@@ -354,7 +354,7 @@ body {
 .period-select-label { display: grid; gap: 5px; color: var(--text-faint); font-size: 10px; font-weight: 600; }
 .period-select-label .theme-select { min-width: 150px; }
 .header-actions { display: flex; align-items: center; gap: 10px; }
-.spending-summary { display: grid; gap: 14px; margin-bottom: 28px; }
+.spending-summary { display: grid; gap: 14px; margin-bottom: 28px; padding-inline: 24px; }
 .metric-grid { display: grid; gap: 14px; }
 .metric-grid-overview { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .metric-grid-three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -379,7 +379,7 @@ body {
 .group-bar-heading { display: grid; min-width: 0; align-content: center; gap: 4px; }
 .group-bar-heading strong { overflow: hidden; color: var(--text-dim); font-size: 10px; font-weight: 700; letter-spacing: .08em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
 .group-bar-heading span { font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.1; }
-.group-bar-track { display: grid; grid-template-columns: minmax(115px, 23%) minmax(0, 1fr); align-items: center; gap: 16px; width: 100%; min-height: 38px; background: transparent; }
+.group-bar-track { display: grid; grid-template-columns: max-content minmax(0, 1fr); align-items: center; gap: 16px; width: 100%; min-height: 38px; background: transparent; }
 .group-stacked-bar { display: flex; min-width: 0; min-height: 38px; overflow: visible; gap: 1px; background: transparent; }
 .group-stacked-segment { display: flex; min-width: 0; flex: 0 0 auto; flex-direction: row; align-items: flex-end; justify-content: flex-start; gap: 4px; overflow: hidden; padding: 0 7px 4px; border-radius: 4px; color: var(--on-brand); }
 .group-stacked-category-copy { display: block; max-width: 100%; overflow: hidden; font-size: 9px; font-variant-numeric: tabular-nums; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
@@ -471,7 +471,7 @@ tfoot th, tfoot td { border-top: 1px solid var(--line-strong); border-bottom: 0;
 .expense-pagination .btn-ghost:disabled { opacity: .45; cursor: not-allowed; }
 .footnote { margin-top: 15px; color: var(--text-faint); font-size: 10px; line-height: 1.6; }
 .footnote code { color: var(--text-dim); }
-.dashboard-shell footer { padding: 7px 2px; text-align: center; color: var(--text-faint); font-size: 10px; }
+.dashboard-shell footer { padding: 7px 26px; text-align: center; color: var(--text-faint); font-size: 10px; }
 .center-note { min-height: 100%; display: grid; place-items: center; color: var(--text-dim); font-size: 14px; }
 .center-note-content { display: grid; justify-items: center; gap: 14px; padding: 24px; text-align: center; }
 @media (max-width: 1050px) { .metric-grid-groups { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
@@ -482,7 +482,8 @@ tfoot th, tfoot td { border-top: 1px solid var(--line-strong); border-bottom: 0;
   .refresh-controls { justify-content: space-between; padding: 5px 0 10px; }
   .refresh-copy { text-align: left; }
   .dashboard-shell { padding: 28px 15px 22px; }
-  .page-header { align-items: flex-start; flex-direction: column; margin-bottom: 20px; }
+  .page-header { align-items: flex-start; flex-direction: column; margin-bottom: 20px; padding-inline: 14px; }
+  .spending-summary { padding-inline: 14px; }
   .header-actions { align-self: stretch; justify-content: flex-end; }
   .metric-grid { gap: 9px; }
   .metric-grid-overview { grid-template-columns: 1fr; gap: 23px; }
@@ -497,7 +498,7 @@ tfoot th, tfoot td { border-top: 1px solid var(--line-strong); border-bottom: 0;
   .expense-filter-label .theme-select { min-width: 0; width: 100%; }
   .expense-table-footer { align-items: flex-start; flex-direction: column; }
   .group-bar-track, .group-stacked-bar { min-height: 34px; }
-  .group-bar-track { grid-template-columns: minmax(96px, 34%) minmax(0, 1fr); gap: 10px; }
+  .group-bar-track { grid-template-columns: max-content minmax(0, 1fr); gap: 10px; }
   .group-bar-heading span { overflow-wrap: anywhere; font-size: 12px; }
   .group-stacked-segment { gap: 3px; padding: 0 4px 4px; }
   .group-stacked-category-copy { font-size: 8px; }

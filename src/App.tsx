@@ -67,7 +67,7 @@ function MetricCard({ label, value, detail, color }: { label: string; value: str
 }
 
 function SpendingDashboard({ snapshot, onDisconnect }: { snapshot: NonNullable<Awaited<ReturnType<typeof getSnapshot>>>; onDisconnect: () => void }) {
-  const [spendingView, setSpendingView] = useState<'treemap' | 'bars'>('treemap');
+  const [spendingView, setSpendingView] = useState<'treemap' | 'bars'>('bars');
   const [rangeValue, setRangeValue] = useState('rolling-12');
   const rangeOptions = useMemo(() => availableSpendingRanges(snapshot), [snapshot]);
   const defaultRange = rangeOptions.find((option) => option.value === 'rolling-12')
