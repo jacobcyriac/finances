@@ -175,7 +175,7 @@ export function Login({ onConnected }: { onConnected: () => void }) {
         <p className="mt-3 text-center text-[11px] text-[var(--text-faint)]">
           <a
             className="inline-flex items-center gap-1.5 underline decoration-dotted underline-offset-2 transition-colors hover:text-[var(--text-dim)]"
-            href="https://github.com/actualbudget/browser-app-demo"
+            href="https://github.com/jacobcyriac/finances"
             target="_blank"
             rel="noreferrer noopener"
           >
