@@ -59,8 +59,10 @@ function groupFill(colorToken: string): string {
 function MetricCard({ label, value, detail, color }: { label: string; value: string; detail: string; color?: string }) {
   return <div className="panel metric-card">
     <div className="label">{label}</div>
-    <div className="metric-value" style={color ? { color } : undefined}>{value}</div>
-    <div className="metric-detail">{detail}</div>
+    <div className="metric-reading">
+      <div className="metric-value" style={color ? { color } : undefined}>{value}</div>
+      <div className="metric-detail">{detail}</div>
+    </div>
   </div>;
 }
 
@@ -69,6 +71,7 @@ function SpendingDashboard({ snapshot, onDisconnect }: { snapshot: NonNullable<A
   const period = useMemo(() => rollingSpending(snapshot), [snapshot]);
   const currency = snapshot.currency;
   const fmt = (value: number) => formatMoney(value, currency);
+  const fmtWhole = (value: number) => formatMoney(Math.round(value / 100) * 100, currency).replace(/\.00(?=\D|$)/, '');
   const disconnectMutation = useMutation({ mutationFn: disconnect, onSuccess: onDisconnect });
   const data = period.months.map((month) => ({
     ...month,
@@ -95,17 +98,8 @@ function SpendingDashboard({ snapshot, onDisconnect }: { snapshot: NonNullable<A
 
     <section className="spending-summary" aria-label="12-month spending summary">
       <div className="metric-grid metric-grid-overview">
-        <MetricCard label="Total spending" value={fmt(period.totals.total)} detail="All included categories" />
-        <MetricCard label="Monthly average" value={fmt(period.totals.average)} detail="Total divided by 12" />
-      </div>
-      <div className="metric-grid metric-grid-groups" aria-label="Spending by category group">
-        {period.groups.map((group) => <MetricCard
-          key={group.id}
-          label={group.name}
-          value={fmt(group.total)}
-          detail="12-month total"
-          color={group.color}
-        />)}
+        <MetricCard label="Total spending" value={fmtWhole(period.totals.total)} detail="/year" />
+        <MetricCard label="Monthly average" value={fmtWhole(period.totals.average)} detail="/month" />
       </div>
     </section>
 
