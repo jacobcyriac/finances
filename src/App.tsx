@@ -57,7 +57,7 @@ function groupFill(colorToken: string): string {
 }
 
 function MetricCard({ label, value, detail, color }: { label: string; value: string; detail: string; color?: string }) {
-  return <div className="panel metric-card">
+  return <div className="metric-card">
     <div className="label">{label}</div>
     <div className="metric-reading">
       <div className="metric-value" style={color ? { color } : undefined}>{value}</div>
