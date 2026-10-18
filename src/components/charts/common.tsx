@@ -1,7 +1,7 @@
 import type { CurrencyFormat } from '../../types';
 import { formatMoney } from '../../lib/money';
 
-/** Purple-led data series ramp (used for stacked/multi series). */
+/** Shared categorical palette for stacked and multiple series charts. */
 export const SERIES = [
   'var(--series-1)',
   'var(--series-2)',

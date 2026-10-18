@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { ChevronDown, ChevronRight, X } from 'lucide-react';
 import type { Snapshot, Settings as SettingsType, AccountClass, AccountDTO } from '../types';
 import { formatMoney } from '../lib/money';
 import { resolveClass } from '../lib/classify';
@@ -73,7 +74,7 @@ export function Settings({ snapshot, settings, trailing12, onChange, onClose }: 
             <button
               key={c.value}
               onClick={() => setClass(acc.id, c.value)}
-              className="px-2.5 py-1.5 text-xs font-medium transition"
+              className="settings-account-class-button transition"
               style={{
                 background: active ? 'var(--brand)' : 'transparent',
                 color: active ? 'var(--on-brand)' : 'var(--text-dim)',
@@ -101,7 +102,7 @@ export function Settings({ snapshot, settings, trailing12, onChange, onClose }: 
         <header className="mb-6 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-[var(--text)]">Settings</h2>
           <button className="btn-ghost px-2.5 py-1.5" onClick={onClose} aria-label="Close settings">
-            ✕
+            <X size={16} aria-hidden="true" />
           </button>
         </header>
 
@@ -115,7 +116,7 @@ export function Settings({ snapshot, settings, trailing12, onChange, onClose }: 
                 className="text-xs font-medium text-[var(--text-dim)] transition hover:text-[var(--text)]"
                 onClick={() => setShowClosed((v) => !v)}
               >
-                {showClosed ? '▾' : '▸'} {showClosed ? 'Hide' : 'Show'} closed accounts ({closedAccounts.length})
+                {showClosed ? <ChevronDown size={14} aria-hidden="true" /> : <ChevronRight size={14} aria-hidden="true" />} {showClosed ? 'Hide' : 'Show'} closed accounts ({closedAccounts.length})
               </button>
               {showClosed && <div className="mt-2 space-y-2">{closedAccounts.map(renderAccount)}</div>}
             </div>
@@ -133,7 +134,7 @@ export function Settings({ snapshot, settings, trailing12, onChange, onClose }: 
               {[...excluded].map((id) => (
                 <button key={id} className="chip transition hover:border-[var(--neg)] hover:text-[var(--text)]" onClick={() => toggleCategory(id)}>
                   {catById.get(id)?.name ?? id}
-                  <span aria-hidden className="text-[var(--text-faint)]">✕</span>
+                  <X size={12} aria-hidden="true" className="text-[var(--text-faint)]" />
                 </button>
               ))}
             </div>
@@ -141,7 +142,6 @@ export function Settings({ snapshot, settings, trailing12, onChange, onClose }: 
 
           <input
             className="input mb-2"
-            style={{ padding: '0.5rem 0.75rem' }}
             placeholder="Search categories…"
             value={catQuery}
             onChange={(e) => setCatQuery(e.target.value)}
@@ -155,9 +155,9 @@ export function Settings({ snapshot, settings, trailing12, onChange, onClose }: 
               const n = g.categories.filter((c) => excluded.has(c.id)).length;
               return (
                 <details key={g.id} open={q !== '' || undefined} className="group">
-                  <summary className="flex cursor-pointer select-none items-center justify-between gap-2 px-3 py-2 text-sm text-[var(--text)]">
+                  <summary className="settings-accordion-trigger flex cursor-pointer select-none items-center justify-between gap-2 px-3 text-[var(--text)]">
                     <span className="flex items-center gap-2">
-                      <span className="text-[10px] text-[var(--text-faint)] transition group-open:rotate-90">▶</span>
+                      <ChevronRight size={14} aria-hidden="true" className="text-[var(--text-faint)] transition group-open:rotate-90" />
                       {g.name}
                     </span>
                     <span className="num text-[11px] text-[var(--text-faint)]">
@@ -171,7 +171,7 @@ export function Settings({ snapshot, settings, trailing12, onChange, onClose }: 
                         <button
                           key={c.id}
                           onClick={() => toggleCategory(c.id)}
-                          className="flex w-full items-center justify-between gap-3 px-3 py-1.5 text-left text-sm transition hover:bg-[var(--surface)]"
+                          className="settings-category-button flex w-full items-center justify-between gap-3 text-left transition hover:bg-[var(--surface)]"
                           style={{ color: off ? 'var(--text-faint)' : 'var(--text)' }}
                           aria-pressed={off}
                         >

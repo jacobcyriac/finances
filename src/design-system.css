@@ -1,0 +1,127 @@
+/* The Ledger: shared foundations. Component layout lives in index.css. */
+@font-face { font-family: 'Instrument Serif'; src: url('/fonts/instrument-serif-regular.ttf') format('truetype'); font-style: normal; font-weight: 400; font-display: swap; }
+@font-face { font-family: 'Instrument Serif'; src: url('/fonts/instrument-serif-italic.ttf') format('truetype'); font-style: italic; font-weight: 400; font-display: swap; }
+@font-face { font-family: 'IBM Plex Mono'; src: url('/fonts/ibm-plex-mono-regular.ttf') format('truetype'); font-style: normal; font-weight: 400; font-display: swap; }
+
+:root {
+  color-scheme: light dark;
+  --font-body: 'Inter', system-ui, sans-serif;
+  --font-display: 'Instrument Serif', Georgia, serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --type-caption: 10px;
+  --type-label: 11px;
+  --type-body: 12px;
+  --type-control: 12px;
+  --type-heading: 32px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 80px;
+  --radius: 3px;
+  --control-height: 38px;
+  --control-radius: var(--radius);
+  --control-font-size: var(--type-control);
+  --control-label-size: var(--type-caption);
+  --control-row-gap: var(--space-3);
+  --sticky-nav-height: 72px;
+  --page-width: 1440px;
+  --page-inset: clamp(24px, 8vw, 120px);
+  --block-gap: clamp(48px, 6vw, 88px);
+  --bg: light-dark(#faf9f6, #1d211d);
+  --bg-2: var(--bg);
+  --surface: var(--bg);
+  --surface-2: light-dark(#eeede7, #292e28);
+  --line: light-dark(#e8e7e0, #343b32);
+  --line-strong: light-dark(#cfd2c7, #4e574b);
+  --text: light-dark(#20231f, #efeee6);
+  --text-dim: light-dark(#555b50, #c5c8bb);
+  --text-faint: light-dark(#74786f, #a0a696);
+  --brand: light-dark(#c34c30, #e1856b);
+  --brand-bright: var(--brand);
+  --brand-deep: light-dark(#a63b22, #c34c30);
+  --brand-gradient: var(--brand);
+  --pos: light-dark(#536d3c, #a1b58a);
+  --neg: light-dark(#a33e36, #ed9d88);
+  --warn: light-dark(#8f6c2e, #d4b273);
+  --on-brand: #faf9f6;
+  --tile-ink: #151812;
+  --status-online: var(--pos);
+  --status-glow: transparent;
+  --focus-ring: color-mix(in srgb, var(--brand) 18%, transparent);
+  --brand-soft: color-mix(in srgb, var(--brand) 8%, var(--surface));
+  --brand-shadow: transparent;
+  --brand-shadow-strong: transparent;
+  --elevation-shadow: 0 8px 28px color-mix(in srgb, var(--text) 10%, transparent);
+  --scroll-thumb: var(--line-strong);
+  --scroll-thumb-hover: var(--text-faint);
+  --chart-axis: var(--text-faint);
+  --chart-grid: var(--line);
+  --chart-cursor: color-mix(in srgb, var(--text) 4%, transparent);
+  --chart-total-label: var(--text-dim);
+  --table-row-line: var(--line);
+  --tooltip-bg: var(--surface);
+  --tooltip-border: var(--line-strong);
+  --overlay: light-dark(#20231f59, #0b100bcc);
+  --error-bg: color-mix(in srgb, var(--neg) 8%, var(--surface));
+  --error-border: color-mix(in srgb, var(--neg) 40%, var(--line));
+  --error-text: var(--neg);
+  --lean: #4a6e79;
+  --fat: var(--warn);
+  --gauge-start: var(--brand);
+  --gauge-end: var(--series-3);
+  /* Stable categorical hues; each tile gets a flat, related shade. */
+  --series-1: #c34c30;
+  --series-2: #637b68;
+  --series-3: #ad853f;
+  --series-4: #855568;
+  --series-5: #60818c;
+  --series-6: #81708f;
+  --series-7: #ad944f;
+  --series-8: #5c8780;
+  --series-9: #aa7056;
+  --series-10: #77865b;
+  --series-11: #956d81;
+  --series-12: #737f83;
+  --treemap-series-1: var(--series-1);
+  --treemap-series-2: var(--series-2);
+  --treemap-series-3: var(--series-3);
+  --treemap-series-4: var(--series-4);
+  --treemap-series-5: var(--series-5);
+  --treemap-series-6: var(--series-6);
+  --treemap-series-7: var(--series-7);
+  --treemap-series-8: var(--series-8);
+  --treemap-series-9: var(--series-9);
+  --treemap-series-10: var(--series-10);
+  --treemap-series-11: var(--series-11);
+  --treemap-series-12: var(--series-12);
+  --spend-rent: var(--series-1);
+  --spend-bills: var(--series-5);
+  --spend-grocery: var(--series-7);
+  --spend-dining: var(--series-3);
+  --spend-food: var(--series-3);
+  --spend-other: var(--series-10);
+  --spend-travel: var(--series-4);
+  --spend-rent-tile: var(--spend-rent);
+  --spend-bills-tile: var(--spend-bills);
+  --spend-grocery-tile: var(--spend-grocery);
+  --spend-dining-tile: var(--spend-dining);
+  --spend-food-tile: var(--spend-food);
+  --spend-other-tile: var(--spend-other);
+  --spend-travel-tile: var(--spend-travel);
+  --spend-bills-shade-2: #4a6e79;
+  --spend-bills-shade-3: #3a5a63;
+  --spend-other-shade-2: #62714a;
+  --spend-other-shade-3: #4e5c39;
+  --spend-food-shade-2: #8f6c2e;
+  --spend-food-shade-3: #725521;
+  --spend-travel-shade-2: #6b3f55;
+  --spend-travel-shade-3: #552f43;
+}
+
+/* System follows the browser; explicit choices select the same token pairs. */
+:root[data-theme='light'] { color-scheme: light; }
+:root[data-theme='dark'] { color-scheme: dark; }

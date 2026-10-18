@@ -1,17 +1,13 @@
 import type { SpendingGroup } from '../../analysis/rolling-spending';
 import type { CurrencyFormat } from '../../types';
+import { spendingTileStyle } from '../../lib/spending-palette';
 import { formatMoney } from '../../lib/money';
 
 interface Props {
   groups: SpendingGroup[];
   currency: CurrencyFormat;
-}
-
-function highContrastGroupColor(colorToken: string): string {
-  const named = colorToken.match(/--(spend-[a-z-]+)/)?.[1];
-  if (named) return `var(--${named}-tile)`;
-  const series = colorToken.match(/--series-(\d+)/)?.[1] ?? '1';
-  return `var(--treemap-series-${series})`;
+  onSelectGroup: (groupId: string) => void;
+  onSelectCategory: (groupId: string, categoryId: string) => void;
 }
 
 function formatTreemapAmount(minor: number, currency: CurrencyFormat): string {
@@ -22,7 +18,7 @@ function formatTreemapAmount(minor: number, currency: CurrencyFormat): string {
   return minor < 0 ? `-${withSymbol}` : withSymbol;
 }
 
-export function SpendingTreemap({ groups, currency }: Props) {
+export function SpendingTreemap({ groups, currency, onSelectGroup, onSelectCategory }: Props) {
   const visibleGroups = groups.filter((group) => group.categories.length > 0);
   if (!visibleGroups.length) return <div className="empty-chart">No categorized spending for this period.</div>;
 
@@ -32,17 +28,20 @@ export function SpendingTreemap({ groups, currency }: Props) {
         {visibleGroups.map((group) => {
           return (
             <section className="treemap-group-column" key={group.id}>
-              <header className="treemap-group-heading">
+              <button className="treemap-group-heading treemap-group-select" type="button" onClick={() => onSelectGroup(group.id)} aria-label={`Filter table by ${group.name}`}>
                 <span className="treemap-group-name" title={group.name}>{group.name}</span>
                 <span className="treemap-group-total">{formatTreemapAmount(group.total, currency)}</span>
-              </header>
+              </button>
               <div className="treemap-group-chart">
-                {group.categories.map((category) => (
-                  <div
+                {group.categories.map((category, index) => (
+                  <button
+                    type="button"
                     className="treemap-category-row"
                     key={category.id}
+                    onClick={() => onSelectCategory(group.id, category.id)}
+                    aria-label={`Filter table by ${group.name}, ${category.name}`}
                     style={{
-                      backgroundColor: highContrastGroupColor(group.color),
+                      ...spendingTileStyle(group.color, index),
                       flexGrow: Math.max(1, category.total),
                       flexBasis: 0,
                     }}
@@ -50,7 +49,7 @@ export function SpendingTreemap({ groups, currency }: Props) {
                   >
                     <span className="treemap-category-name">{category.name}</span>
                     <span className="treemap-category-total">{formatTreemapAmount(category.total, currency)}</span>
-                  </div>
+                  </button>
                 ))}
               </div>
             </section>

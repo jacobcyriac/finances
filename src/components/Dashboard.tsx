@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
-import { getSnapshot, disconnect } from '../api/client';
+import { useQuery } from '@tanstack/react-query';
+import { getSnapshot } from '../api/client';
 import { loadSettings, saveSettings } from '../lib/settings';
 import type { Settings as SettingsType, Assumptions } from '../types';
 import { deriveBase, deriveFinance, type Derived } from '../state/derive';
@@ -19,7 +19,7 @@ import { POS, NEG, BRAND, monthLabel } from './charts/common';
 import { WhatIf } from './WhatIf';
 import { Settings } from './Settings';
 
-export function Dashboard({ onDisconnect }: { onDisconnect: () => void }) {
+export function Dashboard() {
   const { data: snapshot, isLoading, error } = useQuery({ queryKey: ['snapshot'], queryFn: getSnapshot });
   const [settings, setSettings] = useState<SettingsType>(() => loadSettings());
   const [showSettings, setShowSettings] = useState(false);
@@ -34,11 +34,6 @@ export function Dashboard({ onDisconnect }: { onDisconnect: () => void }) {
     () => (base ? deriveFinance(base, settings.assumptions) : null),
     [base, settings.assumptions],
   );
-
-  const disconnectMut = useMutation({
-    mutationFn: disconnect,
-    onSuccess: onDisconnect,
-  });
 
   const updateSettings = (next: SettingsType) => {
     setSettings(next);
@@ -71,9 +66,6 @@ export function Dashboard({ onDisconnect }: { onDisconnect: () => void }) {
           {cur.code && <span className="chip">{cur.code}</span>}
           <button className="btn-ghost" onClick={() => setShowSettings(true)}>
             Settings
-          </button>
-          <button className="btn-ghost" onClick={() => disconnectMut.mutate()}>
-            Disconnect
           </button>
         </div>
       </header>
