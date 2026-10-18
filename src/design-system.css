@@ -9,10 +9,13 @@
   --font-display: 'Instrument Serif', Georgia, serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
   --type-caption: 10px;
+  --type-chart-label: 8px;
   --type-label: 11px;
   --type-body: 12px;
   --type-control: 12px;
   --type-heading: 32px;
+  --type-metric-primary: clamp(48px, 20cqi, 72px);
+  --type-metric-secondary: 36px;
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;

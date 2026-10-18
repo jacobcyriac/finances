@@ -160,7 +160,7 @@ export function ExpenseTransactionsTable({ snapshot, startMonth, endMonth, month
   return <section ref={panelRef} className="panel table-panel expense-table-panel dashboard-block">
     <div ref={stickyToolsRef} className="expense-table-sticky-tools">
       <div className="section-heading">
-        <div><h2>Expenses in selected period</h2></div>
+        <div><h2>Transactions</h2></div>
         <div className="expense-row-summary" aria-label="Filtered expense summary">
           <div><strong>{filteredRows.length.toLocaleString()}</strong><span>transactions</span></div>
           <div><strong>{formatMoney(filteredSummary.total, snapshot.currency)}</strong><span>filtered total</span></div>
@@ -221,6 +221,5 @@ export function ExpenseTransactionsTable({ snapshot, startMonth, endMonth, month
         <button className="btn-ghost" type="button" disabled={page + 1 >= pageCount} onClick={() => setPage((value) => Math.min(pageCount - 1, value + 1))}>Next</button>
       </div>}
     </div>
-    <p className="footnote">Person is the transaction’s account group (for example, Jacob, Prachi, or Joint). Transfers, income, starting balances, and transactions tagged <code>#noise</code> or <code>#payment</code> are excluded.</p>
   </section>;
 }

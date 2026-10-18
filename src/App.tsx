@@ -1,15 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { createPortal } from 'react-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChartNoAxesColumn, LayoutGrid, Settings as SettingsIcon, X } from 'lucide-react';
-import {
-  Bar, CartesianGrid, ComposedChart, LabelList, Line, ResponsiveContainer,
-  XAxis, YAxis,
-} from 'recharts';
+import { Settings as SettingsIcon, X } from 'lucide-react';
 import { connect, getSnapshot, updateFromServer, disconnect } from './api/client';
 import { Login } from './components/Login';
 import { Dashboard as NetWorthDashboard } from './components/Dashboard';
-import { SpendingTreemap } from './components/charts/SpendingTreemap';
+import { MonthlySpendingBars } from './components/charts/MonthlySpendingBars';
 import { GroupStackedBars } from './components/charts/GroupStackedBars';
 import { ExpenseTransactionsTable } from './components/ExpenseTransactionsTable';
 import { DropdownMenu } from './components/ui/DropdownMenu';
@@ -17,8 +12,8 @@ import { clearSessionCredentials, loadSessionCredentials, saveSessionCredentials
 import { loadCachedSnapshot, saveCachedSnapshot } from './snapshot/cache';
 import { availableSpendingRanges, rollingSpending } from './analysis/rolling-spending';
 import type { SpendingRangePreset } from './analysis/rolling-spending';
-import { formatMoney, formatCompact } from './lib/money';
-import type { ConnectRequest, CurrencyFormat } from './types';
+import { formatMoney } from './lib/money';
+import type { ConnectRequest } from './types';
 
 type ThemePreference = 'system' | 'light' | 'dark';
 interface ChartTableFilter {
@@ -101,29 +96,8 @@ function SettingsDrawer({
   </div>;
 }
 
-const monthName = (key: string, options: Intl.DateTimeFormatOptions = { month: 'short', year: '2-digit' }) =>
-  new Date(`${key}-01T12:00:00`).toLocaleDateString(undefined, options);
-
-function TotalLabel(props: { x?: string | number; y?: string | number; value?: string | number; currency: CurrencyFormat }) {
-  if (props.x == null || props.y == null || props.value == null) return null;
-  const x = Number(props.x);
-  const y = Number(props.y);
-  const value = Number(props.value);
-  if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(value)) return null;
-  return <text x={x} y={y - 5} textAnchor="middle" fill="var(--chart-total-label)" fontSize={10}>
-    {formatCompact(value, props.currency)}
-  </text>;
-}
-
-function groupFill(colorToken: string): string {
-  const named = colorToken.match(/--(spend-[a-z-]+)/)?.[1];
-  if (named) return `var(--${named}-tile)`;
-  const series = colorToken.match(/--series-(\d+)/)?.[1] ?? '1';
-  return `var(--treemap-series-${series})`;
-}
-
-function MetricCard({ label, value, detail, color }: { label: string; value: string; detail: string; color?: string }) {
-  return <div className="metric-card">
+function MetricCard({ label, value, detail, color, variant }: { label: string; value: string; detail: string; color?: string; variant?: 'annualized' | 'monthly-average' }) {
+  return <div className={`metric-card${variant ? ` metric-card-${variant}` : ''}`}>
     <div className="label">{label}</div>
     <div className="metric-reading">
       <div className="metric-value" style={color ? { color } : undefined}>{value}</div>
@@ -139,11 +113,6 @@ function SpendingDashboard({ snapshot, rangeOptions, rangeValue, chartFilter, on
   chartFilter: ChartTableFilter;
   onChartFilterChange: (filter: ChartTableFilter) => void;
 }) {
-  const [spendingView, setSpendingView] = useState<'treemap' | 'bars'>('bars');
-  const [hoveredBar, setHoveredBar] = useState<{
-    x: number; y: number; month: string; group: string; amount: number; color: string;
-  } | null>(null);
-  useEffect(() => setHoveredBar(null), [rangeValue]);
   const defaultRange = rangeOptions.find((option) => option.value === 'rolling-12')
     ?? rangeOptions.filter((option) => option.kind === 'rolling').at(-1)
     ?? rangeOptions[0];
@@ -154,28 +123,8 @@ function SpendingDashboard({ snapshot, rangeOptions, rangeValue, chartFilter, on
     endMonth: range.endMonth,
     includeCurrentMonth: range.kind === 'month',
   }), [snapshot, range]);
-  const showPeriodTotal = period.months.length !== 12;
   const currency = snapshot.currency;
-  const fmt = (value: number) => formatMoney(value, currency);
   const fmtWhole = (value: number) => formatMoney(Math.round(value / 100) * 100, currency).replace(/\.00(?=\D|$)/, '');
-  const data = period.months.map((month) => ({
-    ...month,
-    label: monthName(month.month),
-    groups: Object.fromEntries(period.groups.map((group) => [
-      group.id,
-      group.categories.reduce((sum, category) => sum + (month.categories[category.id] ?? 0), 0),
-    ])),
-  }));
-  const showBarTooltip = (
-    group: { id: string; name: string; color: string },
-    item: { payload?: { month?: string; groups?: Record<string, number> } },
-    event: { clientX: number; clientY: number },
-  ) => {
-    if (item.payload?.month) setHoveredBar({
-      x: event.clientX, y: event.clientY, month: item.payload.month,
-      group: group.name, amount: Number(item.payload.groups?.[group.id] ?? 0), color: groupFill(group.color),
-    });
-  };
   const selectGroup = (groupId: string) => {
     const group = period.groups.find((item) => item.id === groupId);
     if (!group) return;
@@ -224,64 +173,30 @@ function SpendingDashboard({ snapshot, rangeOptions, rangeValue, chartFilter, on
   };
 
   return <main className="dashboard-shell ledger-layout">
-    <section className="spending-summary" aria-label={`${range.label} spending summary`}>
-      <div className={`metric-grid metric-grid-overview${showPeriodTotal ? ' metric-grid-three' : ''}`}>
-        {showPeriodTotal && <MetricCard label="Total spending" value={fmtWhole(period.totals.total)} detail={range.label} />}
-        <MetricCard label="Monthly average" value={fmtWhole(period.totals.average)} detail="/month" />
-        <MetricCard label="Annualized spending" value={fmtWhole(period.totals.average * 12)} detail="/year" />
-      </div>
-    </section>
+    <div className="spending-overview">
+      <section className="spending-summary" aria-label={`${range.label} spending summary`}>
+        <div className="metric-grid metric-grid-overview">
+          <MetricCard variant="annualized" label="Annualized spending" value={fmtWhole(period.totals.average * 12)} detail="/year" />
+          <MetricCard variant="monthly-average" label="Monthly average" value={fmtWhole(period.totals.average)} detail="/month" />
+        </div>
+      </section>
 
-    <section className="panel chart-panel treemap-panel dashboard-block">
-      <div className="section-heading">
-        <div>
-          <h2>Categories</h2>
-        </div>
-        <div className="spending-view-toggle" role="group" aria-label="Spending chart view">
-          <button type="button" aria-label="Treemap view" title="Treemap view" aria-pressed={spendingView === 'treemap'} onClick={() => setSpendingView('treemap')}>
-            <LayoutGrid aria-hidden="true" />
-          </button>
-          <button type="button" aria-label="Stacked bar view" title="Stacked bar view" aria-pressed={spendingView === 'bars'} onClick={() => setSpendingView('bars')}>
-            <ChartNoAxesColumn aria-hidden="true" />
-          </button>
-        </div>
-      </div>
-      {spendingView === 'treemap'
-        ? <SpendingTreemap groups={period.groups} currency={currency} onSelectGroup={selectGroup} onSelectCategory={selectCategory} />
-        : <GroupStackedBars groups={period.groups} currency={currency} onSelectGroup={selectGroup} onSelectCategory={selectCategory} />}
-    </section>
+      <section className="panel chart-panel categories-block dashboard-block">
+        <div className="section-heading"><h2>Categories</h2></div>
+        <GroupStackedBars key={range.value} groups={period.groups} currency={currency} onSelectGroup={selectGroup} onSelectCategory={selectCategory} />
+      </section>
 
-    <section className="panel chart-panel monthly-spending-block dashboard-block">
-      <div className="section-heading">
-        <div><h2>Monthly spending</h2></div>
-        <div className="chart-total">{fmt(period.totals.total)} <span>{period.months.length} {period.months.length === 1 ? 'month' : 'months'}</span></div>
-      </div>
-      {period.groups.length === 0 ? <div className="empty-chart">No eligible expenses were found in this period.</div> : <>
-        <div className="chart-wrap" onMouseLeave={() => setHoveredBar(null)}>
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={data} margin={{ top: 34, right: 10, left: 8, bottom: 4 }}>
-              <CartesianGrid vertical={false} stroke="var(--chart-grid)" />
-              <XAxis dataKey="label" axisLine={false} tickLine={false} tickMargin={12} />
-              <YAxis axisLine={false} tickLine={false} tick={false} width={0} />
-              {period.groups.map((group) => <Bar key={group.id} dataKey={`groups.${group.id}`} name={group.id} stackId="spend" fill={groupFill(group.color)} maxBarSize={38} isAnimationActive={false} cursor="pointer"
-                onMouseEnter={(item, _index, event) => showBarTooltip(group, item, event)}
-                onMouseMove={(item, _index, event) => showBarTooltip(group, item, event)}
-                onMouseLeave={() => setHoveredBar(null)}
-                onClick={(item) => {
-                const month = item?.payload?.month;
-                if (month) selectMonthAndGroup(String(month), group.id);
-              }} />)}
-              <Line type="monotone" dataKey="total" stroke="transparent" dot={false} activeDot={false} isAnimationActive={false}>
-                <LabelList dataKey="total" content={(props) => <TotalLabel {...props} currency={currency} />} />
-              </Line>
-            </ComposedChart>
-          </ResponsiveContainer>
-        </div>
-        <div className="legend-list" aria-label="Spending group colors">
-          {period.groups.map((group) => <span key={group.id}><i style={{ background: groupFill(group.color) }} />{group.name}</span>)}
-        </div>
-      </>}
-    </section>
+      <section className="panel chart-panel monthly-spending-block dashboard-block">
+        <div className="section-heading"><h2>Monthly spend</h2></div>
+        <MonthlySpendingBars key={range.value}
+          months={period.months}
+          groups={period.groups}
+          currency={currency}
+          onSelectMonth={(month) => onChartFilterChange({ ...chartFilter, month: chartFilter.month === month ? undefined : month })}
+          onSelectMonthAndGroup={selectMonthAndGroup}
+        />
+      </section>
+    </div>
 
     <ExpenseTransactionsTable
       snapshot={snapshot}
@@ -292,13 +207,6 @@ function SpendingDashboard({ snapshot, rangeOptions, rangeValue, chartFilter, on
       onClearChartFilter={() => onChartFilterChange({})}
     />
 
-  {hoveredBar && createPortal(<div className="chart-pointer-tooltip" role="tooltip" style={{
-    left: hoveredBar.x + 196 > window.innerWidth ? Math.max(8, hoveredBar.x - 196) : hoveredBar.x + 14,
-    top: Math.max(8, Math.min(hoveredBar.y + 14, window.innerHeight - 66)),
-  }}>
-    <span>{monthName(hoveredBar.month)}</span>
-    <div><i style={{ background: hoveredBar.color }} /><span>{hoveredBar.group}</span><strong>{fmt(hoveredBar.amount)}</strong></div>
-  </div>, document.body)}
   <footer>Read-only analysis · Data is processed in this browser</footer>
   </main>;
 }
@@ -420,10 +328,6 @@ export default function App() {
   return <>
     <nav ref={appTabsRef} className="app-tabs" aria-label="Dashboard sections">
       <div className="app-toolbar">
-        <div className="app-brand" aria-label="The Ledger, an annual account">
-          <span aria-hidden="true" />
-          <span>The Ledger <i>/</i> An annual account</span>
-        </div>
         <div className="app-toolbar-main">
         <div className="app-tab-list" role="tablist" aria-label="Financial dashboards">
           <button
