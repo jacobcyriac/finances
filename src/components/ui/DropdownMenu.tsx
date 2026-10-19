@@ -17,9 +17,10 @@ interface DropdownMenuProps {
   placeholder?: string;
   allLabel?: string;
   className?: string;
+  triggerIconOnly?: boolean;
 }
 
-export function DropdownMenu({ options, value, values, onChange, onToggle, label, placeholder, allLabel = 'All', className = '' }: DropdownMenuProps) {
+export function DropdownMenu({ options, value, values, onChange, onToggle, label, placeholder, allLabel = 'All', className = '', triggerIconOnly = false }: DropdownMenuProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const multi = Boolean(onToggle);
@@ -48,8 +49,8 @@ export function DropdownMenu({ options, value, values, onChange, onToggle, label
 
   let lastGroup: string | undefined;
   return <div className={`dropdown-menu ${className}`} ref={rootRef}>
-    <button className="dropdown-trigger" type="button" aria-label={label} aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen((isOpen) => !isOpen)}>
-      <span className="dropdown-trigger-label">{buttonLabel}</span><ChevronDown size={14} strokeWidth={1.8} aria-hidden="true" />
+    <button className={`dropdown-trigger${triggerIconOnly ? ' is-icon-only' : ''}${multi && selected.size ? ' has-selection' : ''}`} type="button" aria-label={label} aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen((isOpen) => !isOpen)}>
+      {!triggerIconOnly && <span className="dropdown-trigger-label">{buttonLabel}</span>}<ChevronDown size={14} strokeWidth={1.8} aria-hidden="true" />
     </button>
     {open && <div className={`dropdown-popover${multi ? ' is-multi' : ''}`} role="listbox" aria-label={label} aria-multiselectable={multi || undefined}>
       {multi && <>

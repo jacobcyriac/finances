@@ -20,13 +20,14 @@ export interface SpendingColumn {
 }
 
 /** Shared column anatomy: total, proportional stack, and an underlined label. */
-export function SpendingColumns({ columns, currency, variant }: {
+export function SpendingColumns({ columns, currency, variant, selection }: {
   columns: SpendingColumn[];
   currency: CurrencyFormat;
   variant: 'categories' | 'monthly';
+  selection?: { columnId?: string; segmentId?: string };
 }) {
   const [tooltip, setTooltip] = useState<{
-    x: number; y: number; heading: string; label: string; amount: number; color: string;
+    x: number; y: number; heading: string; label: string; amount: number; color: string; source: 'pointer' | 'focus';
   } | null>(null);
   const maxPositive = Math.max(0, ...columns.map((column) =>
     column.segments.reduce((sum, segment) => sum + Math.max(0, segment.amount), 0)));
@@ -42,31 +43,48 @@ export function SpendingColumns({ columns, currency, variant }: {
           const negative = column.segments.filter((segment) => segment.amount < 0);
           const positiveTotal = positive.reduce((sum, segment) => sum + segment.amount, 0);
           const negativeTotal = negative.reduce((sum, segment) => sum - segment.amount, 0);
-          const renderSegment = (segment: SpendingColumn['segments'][number]) => <button
-                  className="spending-column-segment" type="button" key={segment.id}
-                  style={{ flexGrow: Math.abs(segment.amount), backgroundColor: segment.color }}
+          const renderSegment = (segment: SpendingColumn['segments'][number], index: number) => {
+            const dimmed = Boolean(selection) && !(column.id === selection?.columnId && (!selection.segmentId || segment.id === selection.segmentId));
+            const shade = positive.length <= 1 ? 100 : 80 + (20 * index) / (positive.length - 1);
+            const backgroundColor = variant === 'categories'
+              ? `color-mix(in srgb, ${segment.color} ${shade}%, var(--bg))`
+              : segment.color;
+            return <button
+                  className={`spending-column-segment${dimmed ? ' is-dimmed' : ''}`} type="button" key={segment.id}
+                  style={{ flexGrow: Math.abs(segment.amount), backgroundColor }}
                   aria-label={`Filter table by ${column.description ?? column.label}, ${segment.label}: ${formatMoney(segment.amount, currency)}`}
                   onClick={segment.onSelect}
                   onMouseEnter={(event) => setTooltip({ x: event.clientX, y: event.clientY,
-                    heading: column.description ?? column.label, label: segment.label, amount: segment.amount, color: segment.color })}
-                  onMouseMove={(event) => setTooltip((value) => value ? { ...value, x: event.clientX, y: event.clientY } : null)}
+                    heading: column.description ?? column.label, label: segment.label, amount: segment.amount, color: segment.color, source: 'pointer' })}
+                  onMouseMove={(event) => setTooltip((value) => value ? { ...value, x: event.clientX, y: event.clientY, source: 'pointer' } : null)}
                   onMouseLeave={() => setTooltip(null)}
                   onFocus={(event) => {
+                    if (!event.currentTarget.matches(':focus-visible')) return;
                     const rect = event.currentTarget.getBoundingClientRect();
                     setTooltip({ x: rect.left, y: rect.top, heading: column.description ?? column.label,
-                      label: segment.label, amount: segment.amount, color: segment.color });
+                      label: segment.label, amount: segment.amount, color: segment.color, source: 'focus' });
                   }}
-                  onBlur={() => setTooltip(null)}
+                  onBlur={() => setTooltip((value) => value?.source === 'focus' ? null : value)}
                 >
                   {variant === 'categories' && <span className="spending-segment-label">{segment.label} {formatCompact(segment.amount, currency)}</span>}
                 </button>;
+          };
           return <div className="spending-column" key={column.id} style={{ '--column-color': column.color } as CSSProperties}>
             <div className="spending-column-plot">
               <div className="spending-column-stack" style={{ bottom: `${maxNegative / extent * 100}%`, height: `${positiveTotal / extent * 100}%` }}>
-                <button className="spending-column-total" type="button" onClick={column.onSelect}
+                {variant === 'categories' ? <div className="spending-column-heading">
+                  <button className="spending-column-label" type="button" onClick={column.onSelect}
+                    aria-label={`Filter table by ${column.description ?? column.label}`} title={column.description ?? column.label}>
+                    {column.label}
+                  </button>
+                  <button className="spending-column-total" type="button" onClick={column.onSelect}
+                    aria-label={`Filter table by ${column.description ?? column.label}: ${formatMoney(column.total, currency)}`}>
+                    {formatCompact(column.total, currency)}
+                  </button>
+                </div> : <button className="spending-column-total" type="button" onClick={column.onSelect}
                   aria-label={`Filter table by ${column.description ?? column.label}: ${formatMoney(column.total, currency)}`}>
                   {formatCompact(column.total, currency)}
-                </button>
+                </button>}
                 {positive.map(renderSegment)}
               </div>
               {negative.length > 0 && <div className="spending-column-stack spending-column-refunds"
@@ -74,10 +92,10 @@ export function SpendingColumns({ columns, currency, variant }: {
                 {negative.map(renderSegment)}
               </div>}
             </div>
-            <button className="spending-column-label" type="button" onClick={column.onSelect}
+            {variant === 'monthly' && <button className="spending-column-label" type="button" onClick={column.onSelect}
               aria-label={`Filter table by ${column.description ?? column.label}`} title={column.description ?? column.label}>
               {column.label}
-            </button>
+            </button>}
           </div>;
         })}
       </div>

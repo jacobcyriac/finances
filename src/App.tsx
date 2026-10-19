@@ -8,6 +8,7 @@ import { MonthlySpendingBars } from './components/charts/MonthlySpendingBars';
 import { GroupStackedBars } from './components/charts/GroupStackedBars';
 import { ExpenseTransactionsTable } from './components/ExpenseTransactionsTable';
 import { DropdownMenu } from './components/ui/DropdownMenu';
+import { TickerNumber, TypingText } from './components/ui/FilterAnimations';
 import { clearSessionCredentials, loadSessionCredentials, saveSessionCredentials } from './lib/session';
 import { loadCachedSnapshot, saveCachedSnapshot } from './snapshot/cache';
 import { availableSpendingRanges, rollingSpending } from './analysis/rolling-spending';
@@ -17,6 +18,7 @@ import type { ConnectRequest } from './types';
 
 type ThemePreference = 'system' | 'light' | 'dark';
 interface ChartTableFilter {
+  source?: 'categories' | 'monthly';
   month?: string;
   groupId?: string;
   groupName?: string;
@@ -40,17 +42,20 @@ function ThemeControl({ value, onChange }: { value: ThemePreference; onChange: (
   </label>;
 }
 
-function PeriodControl({ options, value, onChange }: { options: SpendingRangePreset[]; value: string; onChange: (value: string) => void }) {
+function PeriodControl({ options, value, onChange, onClear, labelOverride }: { options: SpendingRangePreset[]; value: string; onChange: (value: string) => void; onClear: () => void; labelOverride?: string }) {
   const rollingRanges = options.filter((option) => option.kind === 'rolling');
   const yearRanges = options.filter((option) => option.kind === 'year');
-  return <label className="period-header-control">
-    <span>Period</span>
-    <DropdownMenu className="period-dropdown" value={value} onChange={onChange} label="Spending period" options={[
+  const currentLabel = labelOverride ?? options.find((option) => option.value === value)?.label ?? 'All available';
+  return <div className="period-header-control">
+    <span className="period-control-label"><TypingText key={currentLabel} text={currentLabel} /></span>
+    {(value !== 'rolling-12' || labelOverride) && <button className="query-clear-button period-clear-button" type="button" onClick={onClear} aria-label="Clear period filter"><X size={16} aria-hidden="true" /></button>}
+    <DropdownMenu className="period-dropdown query-period-dropdown" triggerIconOnly value={value} onChange={onChange} label="Choose spending period" options={[
+      { value: 'all-time', label: 'All available' },
       { value: 'this-month', label: 'This month' },
       ...rollingRanges.map((option) => ({ value: option.value, label: option.label, group: 'Rolling periods' })),
       ...yearRanges.map((option) => ({ value: option.value, label: option.label, group: 'Calendar years' })),
     ]} />
-  </label>;
+  </div>;
 }
 
 function SettingsDrawer({
@@ -100,18 +105,21 @@ function MetricCard({ label, value, detail, color, variant }: { label: string; v
   return <div className={`metric-card${variant ? ` metric-card-${variant}` : ''}`}>
     <div className="label">{label}</div>
     <div className="metric-reading">
-      <div className="metric-value" style={color ? { color } : undefined}>{value}</div>
+      <div className="metric-value" style={color ? { color } : undefined}><TickerNumber value={value} /></div>
       <div className="metric-detail">{detail}</div>
     </div>
   </div>;
 }
 
-function SpendingDashboard({ snapshot, rangeOptions, rangeValue, chartFilter, onChartFilterChange }: {
+function SpendingDashboard({ snapshot, rangeOptions, rangeValue, chartFilter, onChartFilterChange, periodControl, filteredSummary, onFilteredSummaryChange }: {
   snapshot: NonNullable<Awaited<ReturnType<typeof getSnapshot>>>;
   rangeOptions: SpendingRangePreset[];
   rangeValue: string;
   chartFilter: ChartTableFilter;
   onChartFilterChange: (filter: ChartTableFilter) => void;
+  periodControl: ReactNode;
+  filteredSummary: { annualized: number; monthlyAverage: number } | null;
+  onFilteredSummaryChange: (summary: { annualized: number; monthlyAverage: number }) => void;
 }) {
   const defaultRange = rangeOptions.find((option) => option.value === 'rolling-12')
     ?? rangeOptions.filter((option) => option.kind === 'rolling').at(-1)
@@ -128,12 +136,14 @@ function SpendingDashboard({ snapshot, rangeOptions, rangeValue, chartFilter, on
   const selectGroup = (groupId: string) => {
     const group = period.groups.find((item) => item.id === groupId);
     if (!group) return;
-    if (chartFilter.groupId === groupId && !chartFilter.categoryId) {
-      onChartFilterChange({ month: chartFilter.month });
+    if (chartFilter.source === 'categories' && chartFilter.groupId === groupId && !chartFilter.categoryId) {
+      onChartFilterChange({});
       return;
     }
     onChartFilterChange({
-      month: chartFilter.month,
+      // Category selections inherit the global range; drop any month chosen in Monthly spend.
+      month: undefined,
+      source: 'categories',
       groupId,
       groupName: group.name,
       categoryIds: group.categories.map((category) => category.id),
@@ -143,12 +153,14 @@ function SpendingDashboard({ snapshot, rangeOptions, rangeValue, chartFilter, on
     const group = period.groups.find((item) => item.id === groupId);
     const category = group?.categories.find((item) => item.id === categoryId);
     if (!group || !category) return;
-    if (chartFilter.categoryId === categoryId) {
-      onChartFilterChange({ month: chartFilter.month });
+    if (chartFilter.source === 'categories' && chartFilter.categoryId === categoryId) {
+      onChartFilterChange({});
       return;
     }
     onChartFilterChange({
-      month: chartFilter.month,
+      // Category selections inherit the global range; drop any month chosen in Monthly spend.
+      month: undefined,
+      source: 'categories',
       groupId,
       groupName: group.name,
       categoryId,
@@ -159,12 +171,13 @@ function SpendingDashboard({ snapshot, rangeOptions, rangeValue, chartFilter, on
   const selectMonthAndGroup = (month: string, groupId: string) => {
     const group = period.groups.find((item) => item.id === groupId);
     if (!group) return;
-    const alreadySelected = chartFilter.month === month && chartFilter.groupId === groupId && !chartFilter.categoryId;
+    const alreadySelected = chartFilter.source === 'monthly' && chartFilter.month === month && chartFilter.groupId === groupId && !chartFilter.categoryId;
     if (alreadySelected) {
       onChartFilterChange({});
       return;
     }
     onChartFilterChange({
+      source: 'monthly',
       month,
       groupId,
       groupName: group.name,
@@ -172,18 +185,22 @@ function SpendingDashboard({ snapshot, rangeOptions, rangeValue, chartFilter, on
     });
   };
 
+  const selectMonth = (month: string) => {
+    onChartFilterChange(chartFilter.source === 'monthly' && chartFilter.month === month ? {} : { source: 'monthly', month });
+  };
+
   return <main className="dashboard-shell ledger-layout">
     <div className="spending-overview">
       <section className="spending-summary" aria-label={`${range.label} spending summary`}>
         <div className="metric-grid metric-grid-overview">
-          <MetricCard variant="annualized" label="Annualized spending" value={fmtWhole(period.totals.average * 12)} detail="/year" />
-          <MetricCard variant="monthly-average" label="Monthly average" value={fmtWhole(period.totals.average)} detail="/month" />
+          <MetricCard variant="annualized" label="Annualized spending" value={fmtWhole(filteredSummary?.annualized ?? period.totals.average * 12)} detail="/year" />
+          <MetricCard variant="monthly-average" label="Monthly average" value={fmtWhole(filteredSummary?.monthlyAverage ?? period.totals.average)} detail="/month" />
         </div>
       </section>
 
       <section className="panel chart-panel categories-block dashboard-block">
         <div className="section-heading"><h2>Categories</h2></div>
-        <GroupStackedBars key={range.value} groups={period.groups} currency={currency} onSelectGroup={selectGroup} onSelectCategory={selectCategory} />
+        <GroupStackedBars key={range.value} groups={period.groups} currency={currency} selection={chartFilter.source === 'categories' ? { columnId: chartFilter.groupId, segmentId: chartFilter.categoryId } : undefined} onSelectGroup={selectGroup} onSelectCategory={selectCategory} />
       </section>
 
       <section className="panel chart-panel monthly-spending-block dashboard-block">
@@ -192,7 +209,8 @@ function SpendingDashboard({ snapshot, rangeOptions, rangeValue, chartFilter, on
           months={period.months}
           groups={period.groups}
           currency={currency}
-          onSelectMonth={(month) => onChartFilterChange({ ...chartFilter, month: chartFilter.month === month ? undefined : month })}
+          selection={chartFilter.source === 'monthly' ? { columnId: chartFilter.month, segmentId: chartFilter.groupId } : undefined}
+          onSelectMonth={selectMonth}
           onSelectMonthAndGroup={selectMonthAndGroup}
         />
       </section>
@@ -202,9 +220,10 @@ function SpendingDashboard({ snapshot, rangeOptions, rangeValue, chartFilter, on
       snapshot={snapshot}
       startMonth={period.startMonth}
       endMonth={period.endMonth}
-      monthCount={period.months.length}
       chartFilter={chartFilter}
-      onClearChartFilter={() => onChartFilterChange({})}
+      onChartFilterChange={onChartFilterChange}
+      periodControl={periodControl}
+      onFilteredSummaryChange={onFilteredSummaryChange}
     />
 
   <footer>Read-only analysis · Data is processed in this browser</footer>
@@ -217,7 +236,6 @@ function LoadingNote() {
 
 export default function App() {
   const queryClient = useQueryClient();
-  const appTabsRef = useRef<HTMLElement>(null);
   const [session, setSession] = useState(() => {
     const credentials = loadSessionCredentials();
     return { credentials, connected: Boolean(credentials) };
@@ -229,6 +247,7 @@ export default function App() {
   const [theme, setTheme] = useState<ThemePreference>(getSavedTheme);
   const [rangeValue, setRangeValue] = useState('rolling-12');
   const [chartFilter, setChartFilter] = useState<ChartTableFilter>({});
+  const [filteredSummary, setFilteredSummary] = useState<{ annualized: number; monthlyAverage: number } | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   useEffect(() => {
     if (theme === 'system') document.documentElement.removeAttribute('data-theme');
@@ -266,18 +285,6 @@ export default function App() {
     staleTime: 0,
     refetchOnWindowFocus: false,
   });
-  useEffect(() => {
-    const header = appTabsRef.current;
-    if (!header) return;
-    const updateHeaderHeight = () => document.documentElement.style.setProperty('--sticky-nav-height', `${header.getBoundingClientRect().height}px`);
-    const observer = new ResizeObserver(updateHeaderHeight);
-    observer.observe(header);
-    updateHeaderHeight();
-    return () => {
-      observer.disconnect();
-      document.documentElement.style.removeProperty('--sticky-nav-height');
-    };
-  }, [session.connected, snapshot]);
   const rangeOptions = useMemo(() => snapshot ? availableSpendingRanges(snapshot) : [], [snapshot]);
   const defaultRange = rangeOptions.find((option) => option.value === 'rolling-12')
     ?? rangeOptions.filter((option) => option.kind === 'rolling').at(-1)
@@ -326,7 +333,7 @@ export default function App() {
   </div>;
   const refreshLabel = new Date(snapshot.generatedAt).toLocaleString();
   return <>
-    <nav ref={appTabsRef} className="app-tabs" aria-label="Dashboard sections">
+    <nav className="app-tabs" aria-label="Dashboard sections">
       <div className="app-toolbar">
         <div className="app-toolbar-main">
         <div className="app-tab-list" role="tablist" aria-label="Financial dashboards">
@@ -351,7 +358,6 @@ export default function App() {
         </div>
         </div>
         <div className="app-toolbar-actions">
-          {activeTab === 'expenses' && selectedRange && <PeriodControl options={rangeOptions} value={selectedRange.value} onChange={(next) => { setRangeValue(next); setChartFilter({}); }} />}
           <button className="settings-trigger" type="button" aria-label="Open settings" aria-haspopup="dialog" aria-expanded={settingsOpen} onClick={() => setSettingsOpen(true)}>
             <SettingsIcon aria-hidden="true" />
           </button>
@@ -377,6 +383,9 @@ export default function App() {
         rangeValue={selectedRange?.value ?? 'this-month'}
         chartFilter={chartFilter}
         onChartFilterChange={setChartFilter}
+        filteredSummary={filteredSummary}
+        onFilteredSummaryChange={setFilteredSummary}
+        periodControl={<PeriodControl options={rangeOptions} value={selectedRange?.value ?? 'rolling-12'} onChange={(next) => { setRangeValue(next); setChartFilter({}); }} onClear={() => { setRangeValue('rolling-12'); if (chartFilter.month) setChartFilter({ ...chartFilter, month: undefined }); }} labelOverride={chartFilter.month ? new Date(`${chartFilter.month}-01T12:00:00`).toLocaleDateString(undefined, { month: 'short', year: 'numeric' }) : undefined} />}
       />
     </section>
     <section id="net-worth-panel" className="app-tabpanel" role="tabpanel" aria-labelledby="net-worth-tab" hidden={activeTab !== 'net-worth'}>

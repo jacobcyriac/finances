@@ -14,6 +14,7 @@
   --type-body: 12px;
   --type-control: 12px;
   --type-heading: 32px;
+  --type-chart-heading: 12px;
   --type-metric-primary: clamp(48px, 20cqi, 72px);
   --type-metric-secondary: 36px;
   --space-1: 4px;
@@ -30,8 +31,7 @@
   --control-font-size: var(--type-control);
   --control-label-size: var(--type-caption);
   --control-row-gap: var(--space-3);
-  --sticky-nav-height: 72px;
-  --page-width: 1440px;
+  --page-width: 1920px;
   --page-inset: clamp(24px, 8vw, 120px);
   --block-gap: clamp(48px, 6vw, 88px);
   --bg: light-dark(#faf9f6, #1d211d);

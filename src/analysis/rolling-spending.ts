@@ -61,13 +61,21 @@ export function availableSpendingRanges(snap: Snapshot, now = new Date()): Spend
   const dataMonths = [...new Set(snap.transactions.map((tx) => tx.date.slice(0, 7)).filter((month) => /^\d{4}-(0[1-9]|1[0-2])$/.test(month)))].sort();
   const earliestMonth = dataMonths[0];
   const completedHistory = earliestMonth ? Math.max(0, monthIndex(lastCompletedMonth) - monthIndex(earliestMonth) + 1) : 0;
-  const presets: SpendingRangePreset[] = [1, 3, 6, 12, 24, 36, 48]
+  const presets: SpendingRangePreset[] = earliestMonth ? [{
+    value: 'all-time',
+    label: 'All available',
+    kind: 'rolling' as const,
+    startMonth: earliestMonth,
+    endMonth: currentMonth,
+    months: Math.max(1, monthIndex(currentMonth) - monthIndex(earliestMonth) + 1),
+  }] : [];
+  presets.push(...[1, 3, 6, 12, 24, 36, 48]
     .filter((months) => months <= completedHistory)
-    .map((months) => {
+    .map<SpendingRangePreset>((months) => {
       const endMonth = lastCompletedMonth;
       const startMonth = addMonths(endMonth, -(months - 1));
       return { value: `rolling-${months}`, label: `Last ${months} ${months === 1 ? 'month' : 'months'}`, kind: 'rolling', startMonth, endMonth, months };
-    });
+    }));
 
   presets.push({ value: 'this-month', label: 'This month', kind: 'month', startMonth: currentMonth, endMonth: currentMonth, months: 1 });
   const years = [...new Set(dataMonths.map((month) => Number(month.slice(0, 4))))]
