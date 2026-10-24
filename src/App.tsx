@@ -133,6 +133,8 @@ function SpendingDashboard({ snapshot, rangeOptions, rangeValue, chartFilter, on
   onClearAllFilters: () => void;
   clearAllSignal: number;
 }) {
+  const [transactionsOpen, setTransactionsOpen] = useState(false);
+  const transactionsTriggerRef = useRef<HTMLButtonElement>(null);
   const defaultRange = rangeOptions.find((option) => option.value === 'rolling-12')
     ?? rangeOptions.filter((option) => option.kind === 'rolling').at(-1)
     ?? rangeOptions[0];
@@ -143,6 +145,18 @@ function SpendingDashboard({ snapshot, rangeOptions, rangeValue, chartFilter, on
     endMonth: range.endMonth,
     includeCurrentMonth: range.kind === 'month',
   }), [snapshot, range]);
+  useEffect(() => {
+    if (!transactionsOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') setTransactionsOpen(false); };
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      transactionsTriggerRef.current?.focus();
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [transactionsOpen]);
   const categoryMonth = chartFilter.month
     ? period.months.find((month) => month.month === chartFilter.month)
     : undefined;
@@ -294,21 +308,41 @@ function SpendingDashboard({ snapshot, rangeOptions, rangeValue, chartFilter, on
       </section>
     </div>
 
-    <ExpenseTransactionsTable
-      snapshot={snapshot}
-      startMonth={period.startMonth}
-      endMonth={period.endMonth}
-      chartFilter={chartFilter}
-      onChartFilterChange={onChartFilterChange}
-      periodControl={periodControl}
-      onFilteredSummaryChange={onFilteredSummaryChange}
-      onFilteredChartDataChange={onFilteredChartDataChange}
-      onPersonTotalsChange={onPersonTotalsChange}
-      personFilters={personFilters}
-      onPersonFiltersChange={onPersonFiltersChange}
-      onClearAllFilters={onClearAllFilters}
-      clearAllSignal={clearAllSignal}
-    />
+    <div className={`transaction-mobile-container${transactionsOpen ? ' is-open' : ''}`}>
+      <button
+        ref={transactionsTriggerRef}
+        className="transaction-mobile-trigger"
+        type="button"
+        aria-expanded={transactionsOpen}
+        aria-controls="transaction-mobile-drawer"
+        onClick={() => setTransactionsOpen(true)}
+      >View transactions</button>
+      <div className={`transaction-mobile-overlay${transactionsOpen ? ' is-open' : ''}`} onMouseDown={(event) => { if (event.target === event.currentTarget) setTransactionsOpen(false); }}>
+        <div id="transaction-mobile-drawer" className="transaction-mobile-drawer" role={transactionsOpen ? 'dialog' : undefined} aria-modal={transactionsOpen || undefined} aria-labelledby="transaction-drawer-title">
+          <header className="transaction-mobile-drawer-header">
+            <h2 id="transaction-drawer-title">Transactions</h2>
+            <button className="settings-close-button" type="button" onClick={() => setTransactionsOpen(false)} aria-label="Close transactions"><X aria-hidden="true" /></button>
+          </header>
+          <div className="transaction-mobile-drawer-content">
+            <ExpenseTransactionsTable
+              snapshot={snapshot}
+              startMonth={period.startMonth}
+              endMonth={period.endMonth}
+              chartFilter={chartFilter}
+              onChartFilterChange={onChartFilterChange}
+              periodControl={periodControl}
+              onFilteredSummaryChange={onFilteredSummaryChange}
+              onFilteredChartDataChange={onFilteredChartDataChange}
+              onPersonTotalsChange={onPersonTotalsChange}
+              personFilters={personFilters}
+              onPersonFiltersChange={onPersonFiltersChange}
+              onClearAllFilters={onClearAllFilters}
+              clearAllSignal={clearAllSignal}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
 
   <footer>Read-only analysis · Data is processed in this browser</footer>
   </main>;
@@ -348,7 +382,7 @@ export default function App() {
     const onPageClick = (event: MouseEvent) => {
       if (!(event.target instanceof Element)) return;
       const target = event.target;
-      if (target.closest('button, a, input, textarea, select, [role="button"], [role="option"], [role="combobox"], [role="listbox"], [contenteditable="true"], .dropdown-popover, .settings-drawer, .chart-pointer-tooltip')) return;
+      if (target.closest('button, a, input, textarea, select, [role="button"], [role="option"], [role="combobox"], [role="listbox"], [contenteditable="true"], .dropdown-popover, .settings-drawer, .transaction-mobile-overlay, .chart-pointer-tooltip')) return;
       if (target.closest('h1, h2, h3, h4, h5, h6, p, span, label, td, th, li, svg, img')) return;
       handleClearAllFilters();
     };
