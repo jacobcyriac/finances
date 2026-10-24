@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Settings as SettingsIcon, X } from 'lucide-react';
 import { connect, getSnapshot, updateFromServer, disconnect } from './api/client';
@@ -25,6 +25,10 @@ interface ChartTableFilter {
   categoryId?: string;
   categoryName?: string;
   categoryIds?: string[];
+}
+interface FilteredChartData {
+  totals: Record<string, number>;
+  byMonth: Record<string, Record<string, number>>;
 }
 const THEME_STORAGE_KEY = 'finance-dashboard-theme';
 
@@ -101,7 +105,7 @@ function SettingsDrawer({
   </div>;
 }
 
-function MetricCard({ label, value, detail, color, variant }: { label: string; value: string; detail: string; color?: string; variant?: 'annualized' | 'monthly-average' }) {
+function MetricCard({ label, value, detail, color, variant }: { label: string; value: string; detail: string; color?: string; variant?: 'annualized' | 'monthly-average' | 'total' }) {
   return <div className={`metric-card${variant ? ` metric-card-${variant}` : ''}`}>
     <div className="label">{label}</div>
     <div className="metric-reading">
@@ -111,15 +115,23 @@ function MetricCard({ label, value, detail, color, variant }: { label: string; v
   </div>;
 }
 
-function SpendingDashboard({ snapshot, rangeOptions, rangeValue, chartFilter, onChartFilterChange, periodControl, filteredSummary, onFilteredSummaryChange }: {
+function SpendingDashboard({ snapshot, rangeOptions, rangeValue, chartFilter, onChartFilterChange, periodControl, filteredSummary, onFilteredSummaryChange, filteredChartData, onFilteredChartDataChange, personTotals, onPersonTotalsChange, personFilters, onPersonFiltersChange, onClearAllFilters, clearAllSignal }: {
   snapshot: NonNullable<Awaited<ReturnType<typeof getSnapshot>>>;
   rangeOptions: SpendingRangePreset[];
   rangeValue: string;
   chartFilter: ChartTableFilter;
   onChartFilterChange: (filter: ChartTableFilter) => void;
   periodControl: ReactNode;
-  filteredSummary: { annualized: number; monthlyAverage: number } | null;
-  onFilteredSummaryChange: (summary: { annualized: number; monthlyAverage: number }) => void;
+  filteredSummary: { total: number; annualized: number; monthlyAverage: number; recurring: boolean; transactionCount: number } | null;
+  onFilteredSummaryChange: (summary: { total: number; annualized: number; monthlyAverage: number; recurring: boolean; transactionCount: number }) => void;
+  filteredChartData: FilteredChartData | null;
+  onFilteredChartDataChange: (data: FilteredChartData) => void;
+  personTotals: Record<string, number>;
+  onPersonTotalsChange: (totals: Record<string, number>) => void;
+  personFilters: string[];
+  onPersonFiltersChange: Dispatch<SetStateAction<string[]>>;
+  onClearAllFilters: () => void;
+  clearAllSignal: number;
 }) {
   const defaultRange = rangeOptions.find((option) => option.value === 'rolling-12')
     ?? rangeOptions.filter((option) => option.kind === 'rolling').at(-1)
@@ -131,21 +143,50 @@ function SpendingDashboard({ snapshot, rangeOptions, rangeValue, chartFilter, on
     endMonth: range.endMonth,
     includeCurrentMonth: range.kind === 'month',
   }), [snapshot, range]);
+  const categoryMonth = chartFilter.month
+    ? period.months.find((month) => month.month === chartFilter.month)
+    : undefined;
+  const chartMonths = filteredChartData ? period.months.map((month) => {
+    const categories = filteredChartData.byMonth[month.month] ?? {};
+    return { ...month, categories, total: Object.values(categories).reduce((sum, value) => sum + value, 0) };
+  }) : period.months;
+  const chartTotals = filteredChartData?.totals;
+  const categoryGroups = period.groups.map((group) => {
+    const source = categoryMonth
+      ? (filteredChartData?.byMonth[categoryMonth.month] ?? categoryMonth.categories)
+      : chartTotals;
+    const categories = group.categories
+      .map((category) => ({ ...category, total: source ? source[category.id] ?? 0 : category.total }));
+    return { ...group, categories, total: categories.reduce((sum, category) => sum + category.total, 0) };
+  });
+  const monthlyGroups = chartFilter.groupId && chartFilter.categoryIds && (chartFilter.source === 'categories' || chartFilter.categoryId)
+    ? categoryGroups
+      .filter((group) => group.id === chartFilter.groupId)
+      .map((group) => chartFilter.categoryIds
+        ? { ...group, categories: group.categories.filter((category) => chartFilter.categoryIds?.includes(category.id)) }
+        : group)
+    : categoryGroups;
+  const monthlyCategoryIds = new Set(monthlyGroups.flatMap((group) => group.categories.map((category) => category.id)));
+  const monthlyChartMonths = chartMonths.map((month) => ({
+    ...month,
+    total: [...monthlyCategoryIds].reduce((sum, categoryId) => sum + (month.categories[categoryId] ?? 0), 0),
+  }));
   const currency = snapshot.currency;
   const fmtWhole = (value: number) => formatMoney(Math.round(value / 100) * 100, currency).replace(/\.00(?=\D|$)/, '');
   const selectGroup = (groupId: string) => {
     const group = period.groups.find((item) => item.id === groupId);
     if (!group) return;
-    if (chartFilter.source === 'categories' && chartFilter.groupId === groupId && !chartFilter.categoryId) {
-      onChartFilterChange({});
+    if (chartFilter.groupId === groupId && !chartFilter.categoryId) {
+      onChartFilterChange({ month: chartFilter.month });
       return;
     }
     onChartFilterChange({
-      // Category selections inherit the global range; drop any month chosen in Monthly spend.
-      month: undefined,
+      ...chartFilter,
       source: 'categories',
       groupId,
       groupName: group.name,
+      categoryId: undefined,
+      categoryName: undefined,
       categoryIds: group.categories.map((category) => category.id),
     });
   };
@@ -153,13 +194,18 @@ function SpendingDashboard({ snapshot, rangeOptions, rangeValue, chartFilter, on
     const group = period.groups.find((item) => item.id === groupId);
     const category = group?.categories.find((item) => item.id === categoryId);
     if (!group || !category) return;
-    if (chartFilter.source === 'categories' && chartFilter.categoryId === categoryId) {
-      onChartFilterChange({});
+    if (chartFilter.categoryId === categoryId) {
+      onChartFilterChange({
+        ...chartFilter,
+        source: 'categories',
+        categoryId: undefined,
+        categoryName: undefined,
+        categoryIds: group.categories.map((item) => item.id),
+      });
       return;
     }
     onChartFilterChange({
-      // Category selections inherit the global range; drop any month chosen in Monthly spend.
-      month: undefined,
+      ...chartFilter,
       source: 'categories',
       groupId,
       groupName: group.name,
@@ -171,45 +217,77 @@ function SpendingDashboard({ snapshot, rangeOptions, rangeValue, chartFilter, on
   const selectMonthAndGroup = (month: string, groupId: string) => {
     const group = period.groups.find((item) => item.id === groupId);
     if (!group) return;
-    const alreadySelected = chartFilter.source === 'monthly' && chartFilter.month === month && chartFilter.groupId === groupId && !chartFilter.categoryId;
+    const alreadySelected = chartFilter.month === month && chartFilter.groupId === groupId && !chartFilter.categoryId;
     if (alreadySelected) {
       onChartFilterChange({});
       return;
     }
+    const keepCategory = chartFilter.groupId === groupId && Boolean(chartFilter.categoryId);
     onChartFilterChange({
+      ...chartFilter,
       source: 'monthly',
       month,
       groupId,
       groupName: group.name,
-      categoryIds: group.categories.map((category) => category.id),
+      categoryId: keepCategory ? chartFilter.categoryId : undefined,
+      categoryName: keepCategory ? chartFilter.categoryName : undefined,
+      categoryIds: keepCategory ? chartFilter.categoryIds : group.categories.map((category) => category.id),
     });
   };
 
   const selectMonth = (month: string) => {
-    onChartFilterChange(chartFilter.source === 'monthly' && chartFilter.month === month ? {} : { source: 'monthly', month });
+    onChartFilterChange(chartFilter.month === month
+      ? { ...chartFilter, month: undefined }
+      : { ...chartFilter, month });
   };
 
   return <main className="dashboard-shell ledger-layout">
     <div className="spending-overview">
       <section className="spending-summary" aria-label={`${range.label} spending summary`}>
         <div className="metric-grid metric-grid-overview">
-          <MetricCard variant="annualized" label="Annualized spending" value={fmtWhole(filteredSummary?.annualized ?? period.totals.average * 12)} detail="/year" />
-          <MetricCard variant="monthly-average" label="Monthly average" value={fmtWhole(filteredSummary?.monthlyAverage ?? period.totals.average)} detail="/month" />
+          {filteredSummary && !filteredSummary.recurring
+            ? <MetricCard variant="total" label="Total spending" value={fmtWhole(filteredSummary.total)} detail={`${filteredSummary.transactionCount.toLocaleString()} transactions`} />
+            : <>
+              <MetricCard variant="annualized" label="Annualized spending" value={fmtWhole(filteredSummary?.annualized ?? period.totals.average * 12)} detail="/year" />
+              <MetricCard variant="monthly-average" label="Monthly average" value={fmtWhole(filteredSummary?.monthlyAverage ?? period.totals.average)} detail="/month" />
+            </>}
+        </div>
+        <div className="person-total-filters" role="group" aria-label="Filter by person">
+          <button
+            className={`person-total-filter${personFilters.length === 0 ? ' is-selected' : ''}`}
+            type="button"
+            aria-pressed={personFilters.length === 0}
+            onClick={() => onPersonFiltersChange([])}
+          >
+            <span>All</span>
+            <strong>{fmtWhole(Object.values(personTotals).reduce((sum, total) => sum + total, 0))}</strong>
+          </button>
+          {['Jacob', 'Prachi', 'Joint'].map((person) => <button
+            className={`person-total-filter${personFilters.includes(person) ? ' is-selected' : ''}`}
+            type="button"
+            key={person}
+            aria-pressed={personFilters.includes(person)}
+            onClick={() => onPersonFiltersChange((current) => current.length === 1 && current[0] === person ? [] : [person])}
+          >
+            <span>{person}</span>
+            <strong>{fmtWhole(personTotals[person] ?? 0)}</strong>
+          </button>)}
         </div>
       </section>
 
       <section className="panel chart-panel categories-block dashboard-block">
         <div className="section-heading"><h2>Categories</h2></div>
-        <GroupStackedBars key={range.value} groups={period.groups} currency={currency} selection={chartFilter.source === 'categories' ? { columnId: chartFilter.groupId, segmentId: chartFilter.categoryId } : undefined} onSelectGroup={selectGroup} onSelectCategory={selectCategory} />
+        <GroupStackedBars key={range.value} groups={categoryGroups} currency={currency} selection={chartFilter.groupId ? { columnId: chartFilter.groupId, segmentId: chartFilter.categoryId } : undefined} onSelectGroup={selectGroup} onSelectCategory={selectCategory} />
       </section>
 
       <section className="panel chart-panel monthly-spending-block dashboard-block">
         <div className="section-heading"><h2>Monthly spend</h2></div>
-        <MonthlySpendingBars key={range.value}
-          months={period.months}
-          groups={period.groups}
+      <MonthlySpendingBars key={range.value}
+          months={monthlyChartMonths}
+          groups={monthlyGroups}
           currency={currency}
-          selection={chartFilter.source === 'monthly' ? { columnId: chartFilter.month, segmentId: chartFilter.groupId } : undefined}
+          categoryLabel={chartFilter.categoryName}
+          selection={chartFilter.month ? { columnId: chartFilter.month, segmentId: chartFilter.groupId } : undefined}
           onSelectMonth={selectMonth}
           onSelectMonthAndGroup={selectMonthAndGroup}
         />
@@ -224,6 +302,12 @@ function SpendingDashboard({ snapshot, rangeOptions, rangeValue, chartFilter, on
       onChartFilterChange={onChartFilterChange}
       periodControl={periodControl}
       onFilteredSummaryChange={onFilteredSummaryChange}
+      onFilteredChartDataChange={onFilteredChartDataChange}
+      onPersonTotalsChange={onPersonTotalsChange}
+      personFilters={personFilters}
+      onPersonFiltersChange={onPersonFiltersChange}
+      onClearAllFilters={onClearAllFilters}
+      clearAllSignal={clearAllSignal}
     />
 
   <footer>Read-only analysis · Data is processed in this browser</footer>
@@ -247,7 +331,30 @@ export default function App() {
   const [theme, setTheme] = useState<ThemePreference>(getSavedTheme);
   const [rangeValue, setRangeValue] = useState('rolling-12');
   const [chartFilter, setChartFilter] = useState<ChartTableFilter>({});
-  const [filteredSummary, setFilteredSummary] = useState<{ annualized: number; monthlyAverage: number } | null>(null);
+  const [filteredSummary, setFilteredSummary] = useState<{ total: number; annualized: number; monthlyAverage: number; recurring: boolean; transactionCount: number } | null>(null);
+  const [filteredChartData, setFilteredChartData] = useState<FilteredChartData | null>(null);
+  const [personTotals, setPersonTotals] = useState<Record<string, number>>({});
+  const [personFilters, setPersonFilters] = useState<string[]>([]);
+  const [clearAllSignal, setClearAllSignal] = useState(0);
+  const handleFilteredChartDataChange = useCallback((data: FilteredChartData) => setFilteredChartData(data), []);
+  const handleClearAllFilters = useCallback(() => {
+    setRangeValue('rolling-12');
+    setChartFilter({});
+    setPersonFilters([]);
+    setClearAllSignal((signal) => signal + 1);
+  }, []);
+  useEffect(() => {
+    if (!session.connected) return;
+    const onPageClick = (event: MouseEvent) => {
+      if (!(event.target instanceof Element)) return;
+      const target = event.target;
+      if (target.closest('button, a, input, textarea, select, [role="button"], [role="option"], [role="combobox"], [role="listbox"], [contenteditable="true"], .dropdown-popover, .settings-drawer, .chart-pointer-tooltip')) return;
+      if (target.closest('h1, h2, h3, h4, h5, h6, p, span, label, td, th, li, svg, img')) return;
+      handleClearAllFilters();
+    };
+    document.addEventListener('click', onPageClick);
+    return () => document.removeEventListener('click', onPageClick);
+  }, [session.connected, handleClearAllFilters]);
   const [settingsOpen, setSettingsOpen] = useState(false);
   useEffect(() => {
     if (theme === 'system') document.documentElement.removeAttribute('data-theme');
@@ -385,6 +492,14 @@ export default function App() {
         onChartFilterChange={setChartFilter}
         filteredSummary={filteredSummary}
         onFilteredSummaryChange={setFilteredSummary}
+        filteredChartData={filteredChartData}
+        onFilteredChartDataChange={handleFilteredChartDataChange}
+        personTotals={personTotals}
+        onPersonTotalsChange={setPersonTotals}
+        personFilters={personFilters}
+        onPersonFiltersChange={setPersonFilters}
+        onClearAllFilters={handleClearAllFilters}
+        clearAllSignal={clearAllSignal}
         periodControl={<PeriodControl options={rangeOptions} value={selectedRange?.value ?? 'rolling-12'} onChange={(next) => { setRangeValue(next); setChartFilter({}); }} onClear={() => { setRangeValue('rolling-12'); if (chartFilter.month) setChartFilter({ ...chartFilter, month: undefined }); }} labelOverride={chartFilter.month ? new Date(`${chartFilter.month}-01T12:00:00`).toLocaleDateString(undefined, { month: 'short', year: 'numeric' }) : undefined} />}
       />
     </section>

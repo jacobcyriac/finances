@@ -9,6 +9,7 @@ const COMPACT = new Intl.NumberFormat('en-US', {
   notation: 'compact',
   maximumFractionDigits: 1,
 });
+const WHOLE = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
 
 function withSymbol(body: string, { symbol, symbolFirst }: CurrencyFormat): string {
   if (!symbol) return body;
@@ -26,6 +27,10 @@ export function formatMoney(minor: number, currency: CurrencyFormat): string {
 
 /** Compact format for axis labels, e.g. €1.2M, €340K. */
 export function formatCompact(minor: number, currency: CurrencyFormat): string {
-  const body = withSymbol(COMPACT.format(Math.abs(minor) / 100), currency);
+  const absolute = Math.abs(minor);
+  const value = absolute < 100_000
+    ? WHOLE.format(Math.round(absolute / 100))
+    : COMPACT.format(absolute / 100);
+  const body = withSymbol(value, currency);
   return minor < 0 ? `-${body}` : body;
 }

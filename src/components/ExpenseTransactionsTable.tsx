@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useState, type CSSProperties, type Dispatch, type ReactNode, type SetStateAction } from 'react';
 import { ChevronDown, ChevronUp, X } from 'lucide-react';
 import { DropdownMenu } from './ui/DropdownMenu';
 import { TypingText } from './ui/FilterAnimations';
@@ -38,32 +38,45 @@ function compare(a: string | number, b: string | number): number {
   return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' });
 }
 
-function QueryFilterChip({ label, onRemove }: { label: string; onRemove: () => void }) {
-  return <span className="query-filter-chip">
+function QueryFilterChip({ label, onRemove, color }: { label: string; onRemove: () => void; color?: string }) {
+  return <span className={`query-filter-chip${color ? ' is-category' : ''}`} style={color ? { '--filter-chip-color': color } as CSSProperties : undefined}>
     <TypingText key={label} text={label} />
     <button className="query-chip-remove" type="button" aria-label={`Remove ${label} filter`} onClick={onRemove}><X size={15} aria-hidden="true" /></button>
   </span>;
 }
 
-export function ExpenseTransactionsTable({ snapshot, startMonth, endMonth, chartFilter, onChartFilterChange, periodControl, onFilteredSummaryChange }: {
+export function ExpenseTransactionsTable({ snapshot, startMonth, endMonth, chartFilter, onChartFilterChange, periodControl, onFilteredSummaryChange, onFilteredChartDataChange, onPersonTotalsChange, personFilters, onPersonFiltersChange, onClearAllFilters, clearAllSignal }: {
   snapshot: Snapshot;
   startMonth: string;
   endMonth: string;
   chartFilter: ChartFilter;
   onChartFilterChange: (filter: ChartFilter) => void;
   periodControl: ReactNode;
-  onFilteredSummaryChange: (summary: { annualized: number; monthlyAverage: number }) => void;
+  onFilteredSummaryChange: (summary: { total: number; annualized: number; monthlyAverage: number; recurring: boolean; transactionCount: number }) => void;
+  onFilteredChartDataChange: (data: { totals: Record<string, number>; byMonth: Record<string, Record<string, number>> }) => void;
+  onPersonTotalsChange: (totals: Record<string, number>) => void;
+  personFilters: string[];
+  onPersonFiltersChange: Dispatch<SetStateAction<string[]>>;
+  onClearAllFilters: () => void;
+  clearAllSignal: number;
 }) {
   const [search, setSearch] = useState('');
   const [accountFilters, setAccountFilters] = useState<string[]>([]);
-  const [personFilters, setPersonFilters] = useState<string[]>([]);
   const [categoryFilters, setCategoryFilters] = useState<string[]>([]);
+  const [selectedPayee, setSelectedPayee] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>('date');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [rowLimit, setRowLimit] = useState<RowLimit>(25);
   const [page, setPage] = useState(0);
 
   useEffect(() => setPage(0), [startMonth, endMonth, chartFilter]);
+  useEffect(() => {
+    setSearch('');
+    setAccountFilters([]);
+    setCategoryFilters([]);
+    setSelectedPayee(null);
+    setPage(0);
+  }, [clearAllSignal]);
 
   const { rows, accounts, people, categories } = useMemo(() => {
     const indexes = buildIndexes(snapshot);
@@ -107,7 +120,7 @@ export function ExpenseTransactionsTable({ snapshot, startMonth, endMonth, chart
     };
   }, [snapshot, startMonth, endMonth]);
 
-  const filteredRows = useMemo(() => {
+  const matchingRows = useMemo(() => {
     const needle = search.trim().toLocaleLowerCase();
     const filtered = rows.filter((row) =>
       (!chartFilter.month || row.date.slice(0, 7) === chartFilter.month) &&
@@ -125,14 +138,81 @@ export function ExpenseTransactionsTable({ snapshot, startMonth, endMonth, chart
     return sorted;
   }, [rows, search, chartFilter, accountFilters, personFilters, categoryFilters, sortKey, sortDirection, snapshot.currency]);
 
+  const filteredRows = useMemo(() => selectedPayee
+    ? matchingRows.filter((row) => row.transaction === selectedPayee)
+    : matchingRows, [matchingRows, selectedPayee]);
+
+  const personTotals = useMemo(() => {
+    const needle = search.trim().toLocaleLowerCase();
+    const matching = rows.filter((row) =>
+      (!chartFilter.month || row.date.slice(0, 7) === chartFilter.month) &&
+      (!chartFilter.categoryIds || chartFilter.categoryIds.includes(row.categoryId)) &&
+      (accountFilters.length === 0 || accountFilters.includes(row.account)) &&
+      (categoryFilters.length === 0 || categoryFilters.includes(row.categoryId)) &&
+      (!needle || [row.date, row.account, row.person, row.transaction, row.category, row.details, formatMoney(row.amount, snapshot.currency)]
+        .some((value) => value.toLocaleLowerCase().includes(needle))),
+    );
+    const selected = selectedPayee ? matching.filter((row) => row.transaction === selectedPayee) : matching;
+    return selected.reduce<Record<string, number>>((totals, row) => {
+      totals[row.person] = (totals[row.person] ?? 0) + row.amount;
+      return totals;
+    }, {});
+  }, [rows, chartFilter, accountFilters, categoryFilters, search, selectedPayee, snapshot.currency]);
+
+  useEffect(() => onPersonTotalsChange(personTotals), [personTotals, onPersonTotalsChange]);
+
+  const chartRows = useMemo(() => {
+    const needle = search.trim().toLocaleLowerCase();
+    const matching = rows.filter((row) =>
+      (accountFilters.length === 0 || accountFilters.includes(row.account)) &&
+      (personFilters.length === 0 || personFilters.includes(row.person)) &&
+      (categoryFilters.length === 0 || categoryFilters.includes(row.categoryId)) &&
+      (!needle || [row.date, row.account, row.person, row.transaction, row.category, row.details, formatMoney(row.amount, snapshot.currency)]
+        .some((value) => value.toLocaleLowerCase().includes(needle))),
+    );
+    return selectedPayee ? matching.filter((row) => row.transaction === selectedPayee) : matching;
+  }, [rows, search, accountFilters, personFilters, categoryFilters, selectedPayee, snapshot.currency]);
+
+  const filteredChartData = useMemo(() => chartRows.reduce((data, row) => {
+    data.totals[row.categoryId] = (data.totals[row.categoryId] ?? 0) + row.amount;
+    const month = row.date.slice(0, 7);
+    data.byMonth[month] ??= {};
+    data.byMonth[month][row.categoryId] = (data.byMonth[month][row.categoryId] ?? 0) + row.amount;
+    return data;
+  }, { totals: {} as Record<string, number>, byMonth: {} as Record<string, Record<string, number>> }), [chartRows]);
+
+  useEffect(() => onFilteredChartDataChange(filteredChartData), [filteredChartData, onFilteredChartDataChange]);
+
+  const topPayees = useMemo(() => {
+    const totals = new Map<string, { transactions: number; total: number }>();
+    for (const row of matchingRows) {
+      if (row.transaction === '—') continue;
+      const current = totals.get(row.transaction) ?? { transactions: 0, total: 0 };
+      current.transactions += 1;
+      current.total += row.amount;
+      totals.set(row.transaction, current);
+    }
+    const ranked = [...totals.entries()]
+      .map(([payee, summary]) => ({ payee, ...summary }))
+      .sort((a, b) => b.total - a.total || b.transactions - a.transactions || a.payee.localeCompare(b.payee))
+      .slice(0, 10);
+    if (selectedPayee && !ranked.some((payee) => payee.payee === selectedPayee)) {
+      const selected = totals.get(selectedPayee) ?? { transactions: 0, total: 0 };
+      ranked.splice(9, 1, { payee: selectedPayee, ...selected });
+    }
+    return ranked;
+  }, [matchingRows, selectedPayee]);
+
   const filteredTotal = filteredRows.reduce((sum, row) => sum + row.amount, 0);
   const [startYear, startMonthNumber] = startMonth.split('-').map(Number);
   const [endYear, endMonthNumber] = endMonth.split('-').map(Number);
   const periodMonths = chartFilter.month ? 1 : Math.max(1, (endYear - startYear) * 12 + endMonthNumber - startMonthNumber + 1);
   const filteredMonthlyAverage = Math.round(filteredTotal / periodMonths);
+  const activeMonths = new Set(filteredRows.map((row) => row.date.slice(0, 7))).size;
+  const recurring = filteredRows.length >= 6 && activeMonths >= 2 && filteredRows.length / periodMonths * 12 >= 6;
   useLayoutEffect(() => {
-    onFilteredSummaryChange({ annualized: filteredMonthlyAverage * 12, monthlyAverage: filteredMonthlyAverage });
-  }, [filteredMonthlyAverage, onFilteredSummaryChange]);
+    onFilteredSummaryChange({ total: filteredTotal, annualized: filteredMonthlyAverage * 12, monthlyAverage: filteredMonthlyAverage, recurring, transactionCount: filteredRows.length });
+  }, [filteredTotal, filteredMonthlyAverage, recurring, filteredRows.length, onFilteredSummaryChange]);
 
   const pageSize = rowLimit === 'all' ? filteredRows.length : rowLimit;
   const pageCount = pageSize ? Math.ceil(filteredRows.length / pageSize) : 0;
@@ -142,6 +222,10 @@ export function ExpenseTransactionsTable({ snapshot, startMonth, endMonth, chart
 
   const toggleFilter = (setter: React.Dispatch<React.SetStateAction<string[]>>) => (value: string) => {
     setter((current) => current.includes(value) ? current.filter((item) => item !== value) : [...current, value]);
+    setPage(0);
+  };
+  const togglePersonFilter = (value: string) => {
+    onPersonFiltersChange((current) => current.length === 1 && current[0] === value ? [] : [value]);
     setPage(0);
   };
   const chooseSort = (key: SortKey) => {
@@ -159,31 +243,47 @@ export function ExpenseTransactionsTable({ snapshot, startMonth, endMonth, chart
     </div>
   </th>;
   const removeChartFilter = () => onChartFilterChange({ month: chartFilter.month });
-  const showAllTransactionsPrefix = !search.trim() && !chartFilter.groupName && accountFilters.length === 0 && personFilters.length === 0 && categoryFilters.length === 0;
+  const showAllTransactionsPrefix = !search.trim() && !chartFilter.groupName && !selectedPayee && accountFilters.length === 0 && personFilters.length === 0 && categoryFilters.length === 0;
+  const chartCategoryColor = chartFilter.categoryId ? rows.find((row) => row.categoryId === chartFilter.categoryId)?.categoryColor : undefined;
+  const clearAllFilters = () => onClearAllFilters();
 
   return <>
     <div className="transaction-query-wrap">
     <section className="transaction-query-bar" aria-label="Transaction search and period">
-      <div className="transaction-period-control">
-        {periodControl}
-      </div>
       <div className="transaction-query-main">
         <div className="transaction-search-label" role="search">
+          <div className="transaction-period-chip">{periodControl}</div>
           {showAllTransactionsPrefix && <span className="query-empty-title"><TypingText key="all-transactions" text="All transactions" /></span>}
-          {chartFilter.groupName && <QueryFilterChip label={chartFilter.categoryName ?? chartFilter.groupName} onRemove={removeChartFilter} />}
+          {chartFilter.groupName && <QueryFilterChip label={chartFilter.categoryName ?? chartFilter.groupName} color={chartCategoryColor} onRemove={removeChartFilter} />}
+          {selectedPayee && <QueryFilterChip label={selectedPayee} onRemove={() => { setSelectedPayee(null); setPage(0); }} />}
           {accountFilters.map((value) => <QueryFilterChip key={`account-${value}`} label={value} onRemove={() => setAccountFilters((current) => current.filter((item) => item !== value))} />)}
-          {personFilters.map((value) => <QueryFilterChip key={`person-${value}`} label={value} onRemove={() => setPersonFilters((current) => current.filter((item) => item !== value))} />)}
+          {personFilters.map((value) => <QueryFilterChip key={`person-${value}`} label={value} onRemove={() => onPersonFiltersChange((current) => current.filter((item) => item !== value))} />)}
           {categoryFilters.map((value) => {
             const categoryLabel = categories.find(([id]) => id === value)?.[1] ?? value;
-            return <QueryFilterChip key={`category-${value}`} label={categoryLabel.split(' · ').at(-1) ?? categoryLabel} onRemove={() => setCategoryFilters((current) => current.filter((item) => item !== value))} />;
+            const color = rows.find((row) => row.categoryId === value)?.categoryColor;
+            return <QueryFilterChip key={`category-${value}`} label={categoryLabel.split(' · ').at(-1) ?? categoryLabel} color={color} onRemove={() => setCategoryFilters((current) => current.filter((item) => item !== value))} />;
           })}
           <input className="input" type="text" aria-label="Search expenses" value={search} onChange={(event) => { setSearch(event.target.value); setPage(0); }} placeholder="Search people, tags, payees" />
-          {search.trim() && <button className="query-clear-button search-clear-button" type="button" onClick={() => setSearch('')} aria-label="Clear search"><X size={16} aria-hidden="true" /></button>}
         </div>
+        <button className="query-clear-all" type="button" onClick={clearAllFilters} aria-label="Clear all filters" title="Clear all filters"><X size={32} strokeWidth={1.7} aria-hidden="true" /></button>
       </div>
     </section>
     </div>
     <section className="panel table-panel expense-table-panel dashboard-block">
+    <section className="top-payees-module" aria-labelledby="top-payees-heading">
+      <div className="top-payees-heading">
+        <h2 id="top-payees-heading">Top payees</h2>
+        <span>By total spend · Click to filter</span>
+      </div>
+      {topPayees.length ? <div className="top-payees-table-wrap"><table className="top-payees-table">
+        <thead><tr><th scope="col">Payee</th><th scope="col">Transactions</th><th scope="col" className="numeric">Total</th></tr></thead>
+        <tbody>{topPayees.map((payee) => <tr key={payee.payee} className={selectedPayee && selectedPayee !== payee.payee ? 'is-dimmed' : undefined}>
+          <th scope="row" className="top-payee-name" title={payee.payee}><button className="top-payee-filter" type="button" aria-pressed={selectedPayee === payee.payee} onClick={() => { setSelectedPayee((current) => current === payee.payee ? null : payee.payee); setPage(0); }}>{payee.payee}</button></th>
+          <td className="top-payee-count">{payee.transactions.toLocaleString()}</td>
+          <td className="top-payee-total numeric">{formatMoney(payee.total, snapshot.currency)}</td>
+        </tr>)}</tbody>
+      </table></div> : <p className="top-payees-empty">No payees match these filters.</p>}
+    </section>
     <div className="table-scroll expense-table-scroll">
       <table className="expense-table">
         <colgroup>
@@ -193,7 +293,7 @@ export function ExpenseTransactionsTable({ snapshot, startMonth, endMonth, chart
         <thead><tr>
           {sortHeader('date', 'Date')}
           {filterHeader('account', 'Source account', 'source account', accountFilters, toggleFilter(setAccountFilters), accounts.map((account) => ({ value: account, label: account })), 'All accounts')}
-          {filterHeader('person', 'Person', 'person', personFilters, toggleFilter(setPersonFilters), people.map((person) => ({ value: person, label: person })), 'All people')}
+          {filterHeader('person', 'Person', 'person', personFilters, togglePersonFilter, people.map((person) => ({ value: person, label: person })), 'All people')}
           {filterHeader('category', 'Category', 'category', categoryFilters, toggleFilter(setCategoryFilters), categories.map(([id, name]) => ({ value: id, label: name })), 'All categories')}
           {sortHeader('transaction', 'Transaction')}{sortHeader('details', 'Details')}{sortHeader('amount', 'Amount')}
         </tr></thead>

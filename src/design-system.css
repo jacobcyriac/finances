@@ -14,7 +14,7 @@
   --type-body: 12px;
   --type-control: 12px;
   --type-heading: 32px;
-  --type-chart-heading: 12px;
+  --type-chart-heading: 13px;
   --type-metric-primary: clamp(48px, 20cqi, 72px);
   --type-metric-secondary: 36px;
   --space-1: 4px;
