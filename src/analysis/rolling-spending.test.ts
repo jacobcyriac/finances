@@ -83,7 +83,7 @@ describe('rollingSpending', () => {
   it('offers rolling periods and calendar years based on available history', () => {
     const options = availableSpendingRanges(fixture(), new Date(2026, 9, 17));
     expect(options.map(({ value }) => value)).toEqual([
-      'rolling-1', 'rolling-3', 'rolling-6', 'rolling-12', 'this-month', 'year-2026', 'year-2025',
+      'all-time', 'rolling-1', 'rolling-3', 'rolling-6', 'rolling-12', 'this-month', 'year-2026', 'year-2025',
     ]);
   });
 

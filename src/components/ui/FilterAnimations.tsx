@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties } from 'react';
 
 export function TypingText({ text }: { text: string }) {
   return <span className="typing-text" aria-label={text}>
-    {[...text].map((character, index) => <span className="typing-char" aria-hidden="true" key={`${index}-${character}`} style={{ '--typing-delay': `${Math.min(index * 14, 350)}ms` } as CSSProperties}>{character === ' ' ? '\u00a0' : character}</span>)}
+    {[...text].map((character, index) => <span className="typing-char" aria-hidden="true" key={`${index}-${character}`} style={{ '--typing-delay': `${Math.min(index * 10, 180)}ms` } as CSSProperties}>{character === ' ' ? '\u00a0' : character}</span>)}
   </span>;
 }
 
@@ -32,7 +32,7 @@ export function TickerNumber({ value }: { value: string }) {
     }
     const from = currentNumber.current;
     const startedAt = performance.now();
-    const duration = 480;
+    const duration = 300;
     let frame = 0;
     const tick = (now: number) => {
       const progress = Math.min(1, (now - startedAt) / duration);

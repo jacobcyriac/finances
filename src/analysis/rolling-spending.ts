@@ -121,7 +121,7 @@ function groupColor(name: string, index: number): string {
   return COLORS[index % COLORS.length];
 }
 
-function categoryColor(id: string, name: string): string {
+function categoryColor(id: string): string {
   return fixedColor(id);
 }
 
@@ -200,7 +200,7 @@ export function rollingSpending(
       name,
       groupId: category?.group_id ?? otherGroup?.id ?? 'other',
       group: groupName,
-      color: categoryColor(id, name),
+      color: categoryColor(id),
     });
     const categoryNetExpense = -tx.amount;
     month.categories[id] = (month.categories[id] ?? 0) + categoryNetExpense;

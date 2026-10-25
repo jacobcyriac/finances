@@ -26,11 +26,13 @@ export function formatMoney(minor: number, currency: CurrencyFormat): string {
 }
 
 /** Compact format for axis labels, e.g. €1.2M, €340K. */
-export function formatCompact(minor: number, currency: CurrencyFormat): string {
+export function formatCompact(minor: number, currency: CurrencyFormat, maximumFractionDigits = 1): string {
   const absolute = Math.abs(minor);
   const value = absolute < 100_000
     ? WHOLE.format(Math.round(absolute / 100))
-    : COMPACT.format(absolute / 100);
+    : (maximumFractionDigits === 1 ? COMPACT : new Intl.NumberFormat('en-US', {
+      notation: 'compact', maximumFractionDigits,
+    })).format(absolute / 100);
   const body = withSymbol(value, currency);
   return minor < 0 ? `-${body}` : body;
 }

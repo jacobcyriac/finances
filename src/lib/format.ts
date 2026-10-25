@@ -23,9 +23,3 @@ export function formatMonths(months: number): string {
 export function formatPct(ratio: number): string {
   return `${(ratio * 100).toFixed(1)}%`;
 }
-
-/** Estimate an age at a future year offset given a birth-based current age. */
-export function ageAt(currentAge: number | null, yearsFromNow: number | null): string | null {
-  if (currentAge == null || yearsFromNow == null) return null;
-  return `age ${Math.round(currentAge + yearsFromNow)}`;
-}

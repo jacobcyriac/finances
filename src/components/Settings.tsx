@@ -67,18 +67,15 @@ export function Settings({ snapshot, settings, trailing12, onChange, onClose }: 
           {acc.closed && ' · closed'}
         </div>
       </div>
-      <div className="flex shrink-0 overflow-hidden rounded-lg" style={{ border: '1px solid var(--line-strong)' }}>
+      <div className="btn-segmented shrink-0">
         {CLASSES.map((c) => {
           const active = resolveClass(acc, settings.accountClasses) === c.value;
           return (
             <button
               key={c.value}
               onClick={() => setClass(acc.id, c.value)}
-              className="settings-account-class-button transition"
-              style={{
-                background: active ? 'var(--brand)' : 'transparent',
-                color: active ? 'var(--on-brand)' : 'var(--text-dim)',
-              }}
+              className={`btn-bordered settings-account-class-button${active ? ' is-selected' : ''}`}
+              aria-pressed={active}
             >
               {c.label}
             </button>
@@ -101,7 +98,7 @@ export function Settings({ snapshot, settings, trailing12, onChange, onClose }: 
       >
         <header className="mb-6 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-[var(--text)]">Settings</h2>
-          <button className="btn-ghost px-2.5 py-1.5" onClick={onClose} aria-label="Close settings">
+          <button className="btn-bordered px-2.5 py-1.5" onClick={onClose} aria-label="Close settings">
             <X size={16} aria-hidden="true" />
           </button>
         </header>
@@ -113,7 +110,7 @@ export function Settings({ snapshot, settings, trailing12, onChange, onClose }: 
           {closedAccounts.length > 0 && (
             <div className="mt-3">
               <button
-                className="text-xs font-medium text-[var(--text-dim)] transition hover:text-[var(--text)]"
+                className="btn-bordered settings-disclosure-button text-xs font-medium"
                 onClick={() => setShowClosed((v) => !v)}
               >
                 {showClosed ? <ChevronDown size={14} aria-hidden="true" /> : <ChevronRight size={14} aria-hidden="true" />} {showClosed ? 'Hide' : 'Show'} closed accounts ({closedAccounts.length})
@@ -171,8 +168,7 @@ export function Settings({ snapshot, settings, trailing12, onChange, onClose }: 
                         <button
                           key={c.id}
                           onClick={() => toggleCategory(c.id)}
-                          className="settings-category-button flex w-full items-center justify-between gap-3 text-left transition hover:bg-[var(--surface)]"
-                          style={{ color: off ? 'var(--text-faint)' : 'var(--text)' }}
+                          className="btn-ghost settings-category-button flex w-full gap-3 text-left"
                           aria-pressed={off}
                         >
                           <span className="truncate pl-5">{c.name}</span>

@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Settings as SettingsIcon, X } from 'lucide-react';
 import { connect, getSnapshot, updateFromServer, disconnect } from './api/client';
 import { Login } from './components/Login';
 import { Dashboard as NetWorthDashboard } from './components/Dashboard';
 import { MonthlySpendingBars } from './components/charts/MonthlySpendingBars';
+import { PersonSpendingBars } from './components/charts/PersonSpendingBars';
 import { GroupStackedBars } from './components/charts/GroupStackedBars';
 import { ExpenseTransactionsTable } from './components/ExpenseTransactionsTable';
 import { DropdownMenu } from './components/ui/DropdownMenu';
@@ -14,7 +15,10 @@ import { loadCachedSnapshot, saveCachedSnapshot } from './snapshot/cache';
 import { availableSpendingRanges, rollingSpending } from './analysis/rolling-spending';
 import type { SpendingRangePreset } from './analysis/rolling-spending';
 import { formatMoney } from './lib/money';
+import { DASHBOARD_MODULES, loadDashboardModules, saveDashboardModules, type DashboardModuleId, type DashboardModuleVisibility } from './lib/dashboard-modules';
 import type { ConnectRequest } from './types';
+
+const MemoNetWorthDashboard = memo(NetWorthDashboard);
 
 type ThemePreference = 'system' | 'light' | 'dark';
 interface ChartTableFilter {
@@ -46,24 +50,26 @@ function ThemeControl({ value, onChange }: { value: ThemePreference; onChange: (
   </label>;
 }
 
-function PeriodControl({ options, value, onChange, onClear, labelOverride }: { options: SpendingRangePreset[]; value: string; onChange: (value: string) => void; onClear: () => void; labelOverride?: string }) {
+function PeriodControl({ options, value, onChange, onClear, labelOverride, variant = 'query' }: { options: SpendingRangePreset[]; value: string; onChange: (value: string) => void; onClear: () => void; labelOverride?: string; variant?: 'query' | 'toolbar' }) {
   const rollingRanges = options.filter((option) => option.kind === 'rolling');
   const yearRanges = options.filter((option) => option.kind === 'year');
   const currentLabel = labelOverride ?? options.find((option) => option.value === value)?.label ?? 'All available';
+  const dropdownOptions = [
+    { value: 'all-time', label: 'All available' },
+    { value: 'this-month', label: 'This month' },
+    ...rollingRanges.map((option) => ({ value: option.value, label: option.label, group: 'Rolling periods' })),
+    ...yearRanges.map((option) => ({ value: option.value, label: option.label, group: 'Calendar years' })),
+  ];
+  if (variant === 'toolbar') return <DropdownMenu className="toolbar-period-dropdown" variant="borderless" value={value} onChange={onChange} label="Choose spending period" triggerLabel={<TypingText key={currentLabel} text={currentLabel} />} options={dropdownOptions} />;
   return <div className="period-header-control">
     <span className="period-control-label"><TypingText key={currentLabel} text={currentLabel} /></span>
     {(value !== 'rolling-12' || labelOverride) && <button className="query-clear-button period-clear-button" type="button" onClick={onClear} aria-label="Clear period filter"><X size={16} aria-hidden="true" /></button>}
-    <DropdownMenu className="period-dropdown query-period-dropdown" triggerIconOnly value={value} onChange={onChange} label="Choose spending period" options={[
-      { value: 'all-time', label: 'All available' },
-      { value: 'this-month', label: 'This month' },
-      ...rollingRanges.map((option) => ({ value: option.value, label: option.label, group: 'Rolling periods' })),
-      ...yearRanges.map((option) => ({ value: option.value, label: option.label, group: 'Calendar years' })),
-    ]} />
+    <DropdownMenu className="period-dropdown query-period-dropdown" triggerIconOnly value={value} onChange={onChange} label="Choose spending period" options={dropdownOptions} />
   </div>;
 }
 
 function SettingsDrawer({
-  onClose, theme, onThemeChange, refreshStatus, refreshLabel, onUpdate, updating, updateDisabled, onDisconnect, disconnecting,
+  onClose, theme, onThemeChange, refreshStatus, refreshLabel, onUpdate, updating, updateDisabled, onDisconnect, disconnecting, modules, onModuleToggle,
 }: {
   onClose: () => void;
   theme: ThemePreference;
@@ -75,12 +81,14 @@ function SettingsDrawer({
   updateDisabled: boolean;
   onDisconnect: () => void;
   disconnecting: boolean;
+  modules: DashboardModuleVisibility;
+  onModuleToggle: (id: DashboardModuleId) => void;
 }) {
   return <div className="settings-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
     <aside className="settings-drawer" role="dialog" aria-modal="true" aria-labelledby="settings-title">
       <header className="settings-drawer-header">
         <h2 id="settings-title">Settings</h2>
-        <button className="settings-close-button" type="button" onClick={onClose} aria-label="Close settings" autoFocus>
+        <button className="btn-bordered settings-close-button" type="button" onClick={onClose} aria-label="Close settings" autoFocus>
           <X aria-hidden="true" />
         </button>
       </header>
@@ -88,7 +96,7 @@ function SettingsDrawer({
         <h3>Data</h3>
         <div className="settings-refresh-status">{refreshStatus}</div>
         <p className="settings-refresh-time">Last refreshed {refreshLabel}</p>
-        <button className="btn-ghost settings-update-button" type="button" onClick={onUpdate} disabled={updateDisabled}>
+        <button className="btn-bordered settings-update-button" type="button" onClick={onUpdate} disabled={updateDisabled}>
           {updating ? 'Updating…' : 'Update from Actual'}
         </button>
       </section>
@@ -96,8 +104,24 @@ function SettingsDrawer({
         <h3>Appearance</h3>
         <ThemeControl value={theme} onChange={onThemeChange} />
       </section>
+      <section className="settings-section settings-modules">
+        <h3>Dashboard modules</h3>
+        <div className="settings-module-list">
+          {DASHBOARD_MODULES.map((module) => <button
+            key={module.id}
+            className="btn-bordered settings-module-toggle"
+            type="button"
+            role="switch"
+            aria-checked={modules[module.id]}
+            onClick={() => onModuleToggle(module.id)}
+          >
+            <span>{module.label}</span>
+            <span className={`settings-toggle-track${modules[module.id] ? ' is-on' : ''}`} aria-hidden="true"><span /></span>
+          </button>)}
+        </div>
+      </section>
       <div className="settings-drawer-footer">
-        <button className="btn-ghost settings-disconnect-button" type="button" onClick={onDisconnect} disabled={disconnecting}>
+        <button className="btn-bordered is-danger settings-disconnect-button" type="button" onClick={onDisconnect} disabled={disconnecting}>
           {disconnecting ? 'Disconnecting…' : 'Disconnect'}
         </button>
       </div>
@@ -115,7 +139,7 @@ function MetricCard({ label, value, detail, color, variant }: { label: string; v
   </div>;
 }
 
-function SpendingDashboard({ snapshot, rangeOptions, rangeValue, chartFilter, onChartFilterChange, periodControl, filteredSummary, onFilteredSummaryChange, filteredChartData, onFilteredChartDataChange, personTotals, onPersonTotalsChange, personFilters, onPersonFiltersChange, onClearAllFilters, clearAllSignal }: {
+function SpendingDashboard({ snapshot, rangeOptions, rangeValue, chartFilter, onChartFilterChange, periodControl, filteredSummary, onFilteredSummaryChange, filteredChartData, onFilteredChartDataChange, personTotals, onPersonTotalsChange, personFilters, onPersonFiltersChange, onClearAllFilters, clearAllSignal, moduleVisibility }: {
   snapshot: NonNullable<Awaited<ReturnType<typeof getSnapshot>>>;
   rangeOptions: SpendingRangePreset[];
   rangeValue: string;
@@ -132,6 +156,7 @@ function SpendingDashboard({ snapshot, rangeOptions, rangeValue, chartFilter, on
   onPersonFiltersChange: Dispatch<SetStateAction<string[]>>;
   onClearAllFilters: () => void;
   clearAllSignal: number;
+  moduleVisibility: DashboardModuleVisibility;
 }) {
   const defaultRange = rangeOptions.find((option) => option.value === 'rolling-12')
     ?? rangeOptions.filter((option) => option.kind === 'rolling').at(-1)
@@ -195,13 +220,10 @@ function SpendingDashboard({ snapshot, rangeOptions, rangeValue, chartFilter, on
     const category = group?.categories.find((item) => item.id === categoryId);
     if (!group || !category) return;
     if (chartFilter.categoryId === categoryId) {
-      onChartFilterChange({
-        ...chartFilter,
-        source: 'categories',
-        categoryId: undefined,
-        categoryName: undefined,
-        categoryIds: group.categories.map((item) => item.id),
-      });
+      // Toggling the selected category off should remove the entire category
+      // dimension. Keeping its group/categoryIds here silently turns it into a
+      // group filter. Preserve only an independently selected month.
+      onChartFilterChange(chartFilter.month ? { month: chartFilter.month } : {});
       return;
     }
     onChartFilterChange({
@@ -243,55 +265,44 @@ function SpendingDashboard({ snapshot, rangeOptions, rangeValue, chartFilter, on
 
   return <main className="dashboard-shell ledger-layout">
     <div className="spending-overview">
-      <section className="spending-summary" aria-label={`${range.label} spending summary`}>
-        <div className="metric-grid metric-grid-overview">
-          {filteredSummary && !filteredSummary.recurring
-            ? <MetricCard variant="total" label="Total spending" value={fmtWhole(filteredSummary.total)} detail={`${filteredSummary.transactionCount.toLocaleString()} transactions`} />
-            : <>
-              <MetricCard variant="annualized" label="Annualized spending" value={fmtWhole(filteredSummary?.annualized ?? period.totals.average * 12)} detail="/year" />
-              <MetricCard variant="monthly-average" label="Monthly average" value={fmtWhole(filteredSummary?.monthlyAverage ?? period.totals.average)} detail="/month" />
-            </>}
-        </div>
-        <div className="person-total-filters" role="group" aria-label="Filter by person">
-          <button
-            className={`person-total-filter${personFilters.length === 0 ? ' is-selected' : ''}`}
-            type="button"
-            aria-pressed={personFilters.length === 0}
-            onClick={() => onPersonFiltersChange([])}
-          >
-            <span>All</span>
-            <strong>{fmtWhole(Object.values(personTotals).reduce((sum, total) => sum + total, 0))}</strong>
-          </button>
-          {['Jacob', 'Prachi', 'Joint'].map((person) => <button
-            className={`person-total-filter${personFilters.includes(person) ? ' is-selected' : ''}`}
-            type="button"
-            key={person}
-            aria-pressed={personFilters.includes(person)}
-            onClick={() => onPersonFiltersChange((current) => current.length === 1 && current[0] === person ? [] : [person])}
-          >
-            <span>{person}</span>
-            <strong>{fmtWhole(personTotals[person] ?? 0)}</strong>
-          </button>)}
-        </div>
-      </section>
+      {(moduleVisibility.summary || moduleVisibility.people || moduleVisibility.monthly) && <div className="spending-top-row">
+        {moduleVisibility.summary && <section className="spending-summary" aria-label={`${range.label} spending summary`}>
+          <div className="metric-grid metric-grid-overview">
+            {filteredSummary && !filteredSummary.recurring
+              ? <MetricCard variant="total" label="Total spending" value={fmtWhole(filteredSummary.total)} detail={`${filteredSummary.transactionCount.toLocaleString()} transactions`} />
+              : <>
+                <MetricCard variant="annualized" label="Annualized spending" value={fmtWhole(filteredSummary?.annualized ?? period.totals.average * 12)} detail="/year" />
+                <MetricCard variant="monthly-average" label="Monthly average" value={fmtWhole(filteredSummary?.monthlyAverage ?? period.totals.average)} detail="/month" />
+              </>}
+          </div>
+        </section>}
 
-      <section className="panel chart-panel categories-block dashboard-block">
+        {moduleVisibility.people && <section className="person-spending-block dashboard-block" aria-label="Spend by person">
+          <PersonSpendingBars
+            totals={personTotals}
+            currency={currency}
+            selectedPerson={personFilters[0] ?? null}
+            onSelect={(person) => onPersonFiltersChange((current) => person && !(current.length === 1 && current[0] === person) ? [person] : [])}
+          />
+        </section>}
+
+        {moduleVisibility.monthly && <section className="panel chart-panel monthly-spending-block dashboard-block" aria-label="Monthly spend">
+          <MonthlySpendingBars key={range.value}
+            months={monthlyChartMonths}
+            groups={monthlyGroups}
+            currency={currency}
+            categoryLabel={chartFilter.categoryName}
+            selection={chartFilter.month ? { columnId: chartFilter.month, segmentId: chartFilter.groupId } : undefined}
+            onSelectMonth={selectMonth}
+            onSelectMonthAndGroup={selectMonthAndGroup}
+          />
+        </section>}
+      </div>}
+
+      {moduleVisibility.categories && <section className="panel chart-panel categories-block dashboard-block">
         <div className="section-heading"><h2>Categories</h2></div>
         <GroupStackedBars key={range.value} groups={categoryGroups} currency={currency} selection={chartFilter.groupId ? { columnId: chartFilter.groupId, segmentId: chartFilter.categoryId } : undefined} onSelectGroup={selectGroup} onSelectCategory={selectCategory} />
-      </section>
-
-      <section className="panel chart-panel monthly-spending-block dashboard-block">
-        <div className="section-heading"><h2>Monthly spend</h2></div>
-      <MonthlySpendingBars key={range.value}
-          months={monthlyChartMonths}
-          groups={monthlyGroups}
-          currency={currency}
-          categoryLabel={chartFilter.categoryName}
-          selection={chartFilter.month ? { columnId: chartFilter.month, segmentId: chartFilter.groupId } : undefined}
-          onSelectMonth={selectMonth}
-          onSelectMonthAndGroup={selectMonthAndGroup}
-        />
-      </section>
+      </section>}
     </div>
 
     <ExpenseTransactionsTable
@@ -308,6 +319,7 @@ function SpendingDashboard({ snapshot, rangeOptions, rangeValue, chartFilter, on
       onPersonFiltersChange={onPersonFiltersChange}
       onClearAllFilters={onClearAllFilters}
       clearAllSignal={clearAllSignal}
+      moduleVisibility={moduleVisibility}
     />
 
   <footer>Read-only analysis · Data is processed in this browser</footer>
@@ -356,6 +368,9 @@ export default function App() {
     return () => document.removeEventListener('click', onPageClick);
   }, [session.connected, handleClearAllFilters]);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [moduleVisibility, setModuleVisibility] = useState<DashboardModuleVisibility>(loadDashboardModules);
+  const toggleModule = (id: DashboardModuleId) => setModuleVisibility((current) => ({ ...current, [id]: !current[id] }));
+  useEffect(() => saveDashboardModules(moduleVisibility), [moduleVisibility]);
   useEffect(() => {
     if (theme === 'system') document.documentElement.removeAttribute('data-theme');
     else document.documentElement.setAttribute('data-theme', theme);
@@ -439,6 +454,13 @@ export default function App() {
     </div>
   </div>;
   const refreshLabel = new Date(snapshot.generatedAt).toLocaleString();
+  const periodProps = {
+    options: rangeOptions,
+    value: selectedRange?.value ?? 'rolling-12',
+    onChange: (next: string) => { setRangeValue(next); setChartFilter({}); },
+    onClear: () => { setRangeValue('rolling-12'); if (chartFilter.month) setChartFilter({ ...chartFilter, month: undefined }); },
+    labelOverride: chartFilter.month ? new Date(`${chartFilter.month}-01T12:00:00`).toLocaleDateString(undefined, { month: 'short', year: 'numeric' }) : undefined,
+  };
   return <>
     <nav className="app-tabs" aria-label="Dashboard sections">
       <div className="app-toolbar">
@@ -465,6 +487,7 @@ export default function App() {
         </div>
         </div>
         <div className="app-toolbar-actions">
+          {activeTab === 'expenses' && <PeriodControl {...periodProps} variant="toolbar" />}
           <button className="settings-trigger" type="button" aria-label="Open settings" aria-haspopup="dialog" aria-expanded={settingsOpen} onClick={() => setSettingsOpen(true)}>
             <SettingsIcon aria-hidden="true" />
           </button>
@@ -482,6 +505,8 @@ export default function App() {
       updateDisabled={!session.credentials || isFetching}
       onDisconnect={() => disconnectMutation.mutate()}
       disconnecting={disconnectMutation.isPending}
+      modules={moduleVisibility}
+      onModuleToggle={toggleModule}
     />}
     <section id="expenses-panel" className="app-tabpanel" role="tabpanel" aria-labelledby="expenses-tab" hidden={activeTab !== 'expenses'}>
       <SpendingDashboard
@@ -500,11 +525,12 @@ export default function App() {
         onPersonFiltersChange={setPersonFilters}
         onClearAllFilters={handleClearAllFilters}
         clearAllSignal={clearAllSignal}
-        periodControl={<PeriodControl options={rangeOptions} value={selectedRange?.value ?? 'rolling-12'} onChange={(next) => { setRangeValue(next); setChartFilter({}); }} onClear={() => { setRangeValue('rolling-12'); if (chartFilter.month) setChartFilter({ ...chartFilter, month: undefined }); }} labelOverride={chartFilter.month ? new Date(`${chartFilter.month}-01T12:00:00`).toLocaleDateString(undefined, { month: 'short', year: 'numeric' }) : undefined} />}
+        moduleVisibility={moduleVisibility}
+        periodControl={<PeriodControl {...periodProps} />}
       />
     </section>
     <section id="net-worth-panel" className="app-tabpanel" role="tabpanel" aria-labelledby="net-worth-tab" hidden={activeTab !== 'net-worth'}>
-      <NetWorthDashboard />
+      <MemoNetWorthDashboard />
     </section>
   </>;
 }
