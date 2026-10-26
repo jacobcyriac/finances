@@ -281,15 +281,15 @@ body {
 .dashboard-shell { max-width: var(--page-width); margin: 0 auto; padding: var(--space-8) var(--page-inset) var(--space-7); }
 .compact-dashboard { padding-top: 0; }
 .compact-dashboard .spending-overview { padding-top: 0; }
-.compact-dashboard .spending-columns-categories { padding-top: 32px; }
+.compact-dashboard .spending-columns-categories { box-sizing: border-box; height: 120px; padding-top: 32px; }
 .category-pills-module { min-width: 0; }
-.category-pills { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
-.category-pill { display: inline-flex; min-height: 36px; align-items: center; gap: 8px; padding: 6px 10px; border: 1px solid color-mix(in srgb, var(--category-color) 24%, var(--line)); border-radius: var(--radius); background: color-mix(in srgb, var(--category-color) 10%, var(--surface)); color: var(--text); @apply text-sm; cursor: pointer; transition: background-color .14s ease, border-color .14s ease; }
+.category-pills { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+.category-pill { display: inline-flex; min-height: 30px; align-items: center; gap: 6px; padding: 4px 8px; border: 1px solid color-mix(in srgb, var(--category-color) 24%, var(--line)); border-radius: var(--radius); background: color-mix(in srgb, var(--category-color) 10%, var(--surface)); color: var(--text); @apply text-xs; cursor: pointer; transition: background-color .14s ease, border-color .14s ease; }
 .category-pill:hover { border-color: color-mix(in srgb, var(--category-color) 50%, var(--line)); background: color-mix(in srgb, var(--category-color) 17%, var(--surface)); }
 .category-pill.is-selected { border-color: color-mix(in srgb, var(--category-color) 60%, var(--line)); background: color-mix(in srgb, var(--category-color) 24%, var(--surface)); }
 .category-pill.is-filtered-out { opacity: .4; }
 .category-pill.is-filtered-out:hover { opacity: .78; }
-.category-pill > strong { color: var(--category-color); @apply font-mono; @apply text-sm; @apply font-medium; white-space: nowrap; }
+.category-pill > strong { color: var(--category-color); @apply font-mono; @apply text-xs; @apply font-medium; white-space: nowrap; }
 .category-pill:focus-visible { outline: 2px solid var(--category-color); outline-offset: 2px; }
 .spending-overview { display: grid; align-content: start; gap: 20px; min-width: 0; border-top: 0; padding-top: 20px; }
 .spending-top-row { display: grid; align-items: start; gap: var(--module-column-gap); min-width: 0; }
