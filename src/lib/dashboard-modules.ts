@@ -17,18 +17,18 @@ export type DashboardModuleId = (typeof DASHBOARD_MODULES)[number]['id'];
 export type DashboardModuleVisibility = Record<DashboardModuleId, boolean>;
 
 export const DEFAULT_DASHBOARD_MODULES: DashboardModuleVisibility = {
-  search: true,
+  search: false,
   summary: true,
-  peopleSelector: true,
-  summaryPeople: true,
-  people: true,
+  peopleSelector: false,
+  summaryPeople: false,
+  people: false,
   categories: true,
   categoryPills: true,
-  monthly: true,
-  drilldown: true,
+  monthly: false,
+  drilldown: false,
   transactionsCompact: true,
-  payees: true,
-  transactions: true,
+  payees: false,
+  transactions: false,
 };
 
 const STORAGE_KEY = 'finance-dashboard-modules';
