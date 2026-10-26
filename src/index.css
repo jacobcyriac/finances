@@ -281,7 +281,7 @@ body {
 .dashboard-shell { max-width: var(--page-width); margin: 0 auto; padding: var(--space-8) var(--page-inset) var(--space-7); }
 .compact-dashboard { padding-top: 0; }
 .compact-dashboard .spending-overview { padding-top: 0; }
-.compact-dashboard .spending-columns-categories { box-sizing: border-box; height: 120px; padding-top: 32px; }
+.compact-dashboard .spending-columns-categories { box-sizing: border-box; height: 80px; padding-top: 32px; }
 .category-pills-module { min-width: 0; }
 .category-pills { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
 .category-pill { display: inline-flex; min-height: 30px; align-items: center; gap: 6px; padding: 4px 8px; border: 1px solid color-mix(in srgb, var(--category-color) 24%, var(--line)); border-radius: var(--radius); background: color-mix(in srgb, var(--category-color) 10%, var(--surface)); color: var(--text); @apply text-xs; cursor: pointer; transition: background-color .14s ease, border-color .14s ease; }
@@ -577,7 +577,7 @@ tfoot th, tfoot td { border-top: 1px solid var(--line-strong); border-bottom: 0;
   .spending-drilldown-crumb-separator { color: var(--text-faint); }
   .spending-drilldown-crumb button { max-width: 34vw; overflow: hidden; padding: 4px 2px; border: 0; background: transparent; color: var(--text-dim); font: inherit; @apply text-xs; text-overflow: ellipsis; white-space: nowrap; }
   .spending-drilldown-crumb button[aria-current="step"] { color: var(--text); @apply font-semibold; }
-  .spending-drilldown-columns { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .spending-drilldown-columns { grid-template-columns: minmax(0, 1fr); gap: 0; touch-action: pan-y; }
   .spending-drilldown-column { display: none; }
   .spending-drilldown-column.is-active.is-forward { display: block; animation: spending-drilldown-sheet-in-forward 180ms ease-out; }
   .spending-drilldown-column.is-active.is-back { display: block; animation: spending-drilldown-sheet-in-back 180ms ease-out; }
@@ -802,6 +802,24 @@ tfoot th, tfoot td { border-top: 1px solid var(--line-strong); border-bottom: 0;
 }
 
 @media (max-width: 1199px) {
+  .spending-top-row > .monthly-spending-block { box-sizing: border-box; height: 100px; min-height: 0; max-height: 100px; overflow: hidden; }
+  .spending-columns-monthly .spending-column-plot { height: 56px; }
+  .spending-summary:not(.has-summary-people-chart) > .metric-grid-overview { min-height: 0; align-content: start; }
+  .spending-summary.has-summary-people-chart {
+    box-sizing: border-box;
+    height: 200px;
+    max-height: 200px;
+    grid-template-rows: repeat(3, minmax(0, 1fr));
+    row-gap: 0;
+  }
+  .spending-summary.has-summary-people-chart.without-person-selector {
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+  }
+  .spending-summary.has-summary-people-chart > .spending-person-selector { height: 100%; min-height: 0; }
+  .spending-summary.has-summary-people-chart > .summary-people-chart { min-height: 0; }
+  .summary-people-chart .person-total-chart,
+  .summary-people-chart .spending-columns-scroll { box-sizing: border-box; height: 100%; min-height: 0; }
+  .summary-people-chart .spending-columns-scroll { padding-top: 18px; }
   .transaction-query-wrap { grid-column: 1; grid-row: auto; order: -1; }
   .transaction-query-bar { grid-template-columns: minmax(0, 1fr); }
   .ledger-layout > .spending-overview { grid-column: 1; grid-row: auto; order: 0; }
@@ -809,6 +827,24 @@ tfoot th, tfoot td { border-top: 1px solid var(--line-strong); border-bottom: 0;
   .ledger-layout > footer { grid-column: 1; grid-row: auto; order: 2; }
 }
 @media (max-width: 680px) {
+  #spending-panel,
+  .ledger-layout { overflow: visible; }
+  .dashboard-shell { padding-top: 0; }
+  .ledger-layout { row-gap: 0; }
+  .spending-overview { position: -webkit-sticky; position: sticky; z-index: 20; top: 0; align-self: start; padding-top: 0; padding-bottom: 0; background: var(--bg); }
+  .spending-top-row { position: static; padding-top: 12px; }
+  .spending-overview > .categories-block { margin-top: -20px; padding-block: 12px; }
+  .spending-overview > .categories-block > .section-heading { display: none; margin: 0; }
+  .expense-table-panel:has(> .spending-drilldown-module) { padding-top: 0; }
+  .spending-drilldown-breadcrumbs { position: -webkit-sticky; position: sticky; z-index: 19; top: 224px; margin: 0; padding-block: 12px; background: var(--bg); }
+  .spending-top-row > .monthly-spending-block { box-sizing: border-box; height: 100px; min-height: 0; max-height: 100px; overflow: hidden; }
+  .spending-top-row > .monthly-spending-block .spending-columns-monthly { box-sizing: border-box; height: 100%; min-height: 0; padding-top: 0; }
+  .spending-top-row > .monthly-spending-block .spending-columns-scroll { box-sizing: border-box; height: 100%; min-height: 0; padding-top: 0; }
+  .spending-top-row > .monthly-spending-block .spending-column-plot { height: 56px; }
+  .spending-summary .metric-card-annualized .metric-value { font-size: clamp(2rem, 10vw, 3rem); line-height: 1; }
+  .spending-summary .metric-card-monthly-average .metric-value { font-size: clamp(1.25rem, 6vw, 1.75rem); line-height: 1; }
+  .spending-summary .metric-card-annualized .metric-detail,
+  .spending-summary .metric-card-monthly-average .metric-detail { @apply text-sm; }
   .transaction-query-bar { grid-template-columns: 1fr; }
   .transaction-query-main { height: auto; min-height: 58px; padding: 0 6px; }
   .transaction-search-label { min-height: 56px; overflow-x: auto; overflow-y: visible; }
@@ -821,4 +857,31 @@ tfoot th, tfoot td { border-top: 1px solid var(--line-strong); border-bottom: 0;
   .query-clear-all { width: 52px; flex-basis: 52px; }
   .query-clear-all svg { width: 27px; height: 27px; }
   .expense-footer-actions { flex-wrap: wrap; }
+}
+
+@media (max-width: 680px) {
+  .compact-dashboard .spending-summary:not(.has-summary-people-chart) > .metric-grid-overview:has(.metric-card-annualized) { min-height: 0; }
+  .compact-dashboard .metric-grid-overview:has(.metric-card-annualized) {
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+    align-items: end;
+    gap: 12px;
+    min-height: 0;
+  }
+  .compact-dashboard .metric-grid-overview:not(:has(.metric-card-monthly-average)) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .compact-dashboard .metric-card-annualized .metric-value {
+    font-size: clamp(2.25rem, 12vw, 3rem);
+    line-height: 1;
+  }
+  .compact-dashboard .metric-card-annualized .metric-reading,
+  .compact-dashboard .metric-card-monthly-average .metric-reading {
+    gap: 4px;
+  }
+  .compact-dashboard .metric-card-annualized .metric-detail { @apply text-base; }
+  .compact-dashboard .metric-card-monthly-average .metric-value {
+    font-size: clamp(1.25rem, 6vw, 1.75rem);
+    line-height: 1;
+  }
+  .compact-dashboard .metric-card-monthly-average .metric-detail { @apply text-sm; }
 }

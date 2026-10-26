@@ -92,6 +92,8 @@ export function SpendingDrilldown({ rows, periodMonths, chartFilter, onChartFilt
   const [closingPayee, setClosingPayee] = useState<string | null>(null);
   const previousPayee = useRef(expandedPayeeId);
   const [slideDirection, setSlideDirection] = useState<'forward' | 'back'>('forward');
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
+  const suppressSwipeClickUntil = useRef(0);
   const pendingGroupSelection = useRef<{ frame: number; timer: number } | null>(null);
   const pendingPayeeSelection = useRef<{ frame: number; timer: number } | null>(null);
   const cancelPendingPayeeSelection = () => {
@@ -159,15 +161,6 @@ export function SpendingDrilldown({ rows, periodMonths, chartFilter, onChartFilt
     setSlideDirection(column > activeColumn ? 'forward' : 'back');
     setActiveColumn(column);
   };
-  useEffect(() => {
-    const targetColumn = expandedPayeeId || chartFilter.categoryId ? 1 : null;
-    if (targetColumn === null) return;
-    setActiveColumn((current) => {
-      if (current === targetColumn) return current;
-      setSlideDirection(targetColumn > current ? 'forward' : 'back');
-      return targetColumn;
-    });
-  }, [chartFilter.categoryId, expandedPayeeId]);
   useLayoutEffect(() => {
     const previous = previousPayee.current;
     previousPayee.current = expandedPayeeId;
@@ -260,12 +253,10 @@ export function SpendingDrilldown({ rows, periodMonths, chartFilter, onChartFilt
     setExpandedPayeeId(null);
     onChartFilterChange({ ...chartFilter, source: 'categories', groupId: category.groupId, groupName: category.groupLabel, categoryId: category.id, categoryName: category.label, categoryIds: [category.id] });
     onSelectedPayeeChange(null);
-    navigateToColumn(1);
   };
   const selectAllCategories = () => {
     setPendingAllSelection(true);
     selectGroupAfterPaint(chartFilter.month ? { month: chartFilter.month } : {});
-    navigateToColumn(1);
   };
   const isAllSelected = pendingAllSelection || (!chartFilter.groupId && !chartFilter.categoryId);
 
@@ -273,13 +264,39 @@ export function SpendingDrilldown({ rows, periodMonths, chartFilter, onChartFilt
     <nav className="spending-drilldown-breadcrumbs" aria-label="Explore spending navigation">
       {[
         { label: 'Categories', column: 0 },
-        { label: chartFilter.categoryName ?? chartFilter.groupName ?? 'Payees', column: 1 },
+        { label: 'Payees', column: 1 },
       ].map((crumb, index) => <span className="spending-drilldown-crumb" key={`${crumb.column}-${crumb.label}`}>
         {index > 0 && <span className="spending-drilldown-crumb-separator" aria-hidden="true">›</span>}
         <button type="button" aria-current={activeColumn === crumb.column ? 'step' : undefined} onClick={() => navigateToColumn(crumb.column)}>{crumb.label}</button>
       </span>)}
     </nav>
-    <div className="spending-drilldown-columns">
+    <div
+      className="spending-drilldown-columns"
+      onTouchStart={(event) => {
+        touchStart.current = event.touches.length === 1
+          ? { x: event.touches[0].clientX, y: event.touches[0].clientY }
+          : null;
+      }}
+      onTouchEnd={(event) => {
+        const start = touchStart.current;
+        touchStart.current = null;
+        if (!start) return;
+        const touch = event.changedTouches[0];
+        const deltaX = touch.clientX - start.x;
+        const deltaY = touch.clientY - start.y;
+        if (Math.abs(deltaX) < 48 || Math.abs(deltaX) < Math.abs(deltaY) * 1.2) return;
+        const nextColumn = deltaX < 0 ? 1 : 0;
+        if (nextColumn === activeColumn) return;
+        suppressSwipeClickUntil.current = Date.now() + 450;
+        navigateToColumn(nextColumn);
+      }}
+      onClickCapture={(event) => {
+        if (Date.now() > suppressSwipeClickUntil.current) return;
+        suppressSwipeClickUntil.current = 0;
+        event.preventDefault();
+        event.stopPropagation();
+      }}
+    >
       <section className={`spending-drilldown-column spending-drilldown-categories${activeColumn === 0 ? ` is-active is-${slideDirection}` : ''}`} aria-label="Categories">
         <ul>
           {[
@@ -347,7 +364,6 @@ export function SpendingDrilldown({ rows, periodMonths, chartFilter, onChartFilt
                         cancelPendingPayeeSelection();
                         setPendingAllSelection(false);
                         setExpandedPayeeId(null);
-                        navigateToColumn(1);
                         if (isSelectedGroup && !selectedPayee) cancelPendingGroupSelection();
                         else selectGroupAfterPaint({ ...chartFilter, source: 'categories', groupId: group.id, groupName: group.label, categoryId: undefined, categoryName: undefined, categoryIds: group.categoryIds });
                       }}
