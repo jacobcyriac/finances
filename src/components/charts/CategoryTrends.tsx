@@ -34,7 +34,7 @@ export function CategoryTrends({ rows, keys, groupsByCategory = {}, currency, he
         <Legend
           iconType="circle"
           iconSize={8}
-          wrapperStyle={{ fontSize: 11, color: 'var(--text-dim)', paddingTop: 8 }}
+          wrapperStyle={{ color: 'var(--text-dim)', paddingTop: 8 }}
         />
         {keys.map((k, i) => (
           <Area

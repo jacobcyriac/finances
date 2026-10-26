@@ -77,7 +77,7 @@ export function Login({ onConnected }: { onConnected: (credentials: ConnectReque
             <div key={f.key}>
               <label className="mb-1.5 flex items-baseline justify-between">
                 <span className="label">{f.label}</span>
-                {f.optional && <span className="text-[10px] text-[var(--text-faint)]">optional</span>}
+                {f.optional && <span className="text-xs text-[var(--text-faint)]">optional</span>}
               </label>
               <input
                 className="input"
@@ -88,7 +88,7 @@ export function Login({ onConnected }: { onConnected: (credentials: ConnectReque
                 value={form[f.key] ?? ''}
                 onChange={(e) => setForm((s) => ({ ...s, [f.key]: e.target.value }))}
               />
-              {f.hint && <p className="mt-1 text-[11px] text-[var(--text-faint)]">{f.hint}</p>}
+              {f.hint && <p className="mt-1 text-xs text-[var(--text-faint)]">{f.hint}</p>}
             </div>
           ))}
 
@@ -108,7 +108,7 @@ export function Login({ onConnected }: { onConnected: (credentials: ConnectReque
         <div className="mt-5">
           <div className="flex items-center gap-3" aria-hidden="true">
             <span className="h-px flex-1" style={{ background: 'var(--line)' }} />
-            <span className="text-[11px] uppercase tracking-wider text-[var(--text-faint)]">or</span>
+            <span className="text-xs uppercase tracking-wider text-[var(--text-faint)]">or</span>
             <span className="h-px flex-1" style={{ background: 'var(--line)' }} />
           </div>
 
@@ -138,7 +138,7 @@ export function Login({ onConnected }: { onConnected: (credentials: ConnectReque
               if (file) importMutation.mutate(file);
             }}
           />
-          <p className="mt-2 text-center text-[11px] text-[var(--text-faint)]">
+          <p className="mt-2 text-center text-xs text-[var(--text-faint)]">
             Upload an Actual export (.zip) — analyzed on your machine, offline.
           </p>
 
@@ -158,21 +158,21 @@ export function Login({ onConnected }: { onConnected: (credentials: ConnectReque
               'Try the demo'
             )}
           </button>
-          <p className="mt-2 text-center text-[11px] text-[var(--text-faint)]">
+          <p className="mt-2 text-center text-xs text-[var(--text-faint)]">
             Explore with sample data — no account needed.
           </p>
 
           <ErrorNote error={demoMutation.error} className="mt-3" />
         </div>
 
-        <p className="mt-5 text-center text-[11px] leading-relaxed text-[var(--text-faint)]">
-          To reconnect after a refresh, this tab keeps your password and optional encryption key
-          in session storage. Disconnect clears them; closing the tab ends the session. Scripts
-          running on this dashboard origin can access browser session storage. Budget data stays
+        <p className="mt-5 text-center text-xs leading-relaxed text-[var(--text-faint)]">
+          This browser remembers your password and optional encryption key so you can reconnect
+          after reopening the dashboard. Disconnect clears them. Scripts
+          running on this dashboard origin can access these saved credentials. Budget data stays
           in this browser, and the Actual engine keeps its local cache on this device.
         </p>
 
-        <p className="mt-3 text-center text-[11px] text-[var(--text-faint)]">
+        <p className="mt-3 text-center text-xs text-[var(--text-faint)]">
           <a
             className="inline-flex items-center gap-1.5 underline decoration-dotted underline-offset-2 transition-colors hover:text-[var(--text-dim)]"
             href="https://github.com/jacobcyriac/finances"

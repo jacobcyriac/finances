@@ -44,6 +44,16 @@ export function SpendingColumns({ columns, currency, variant, selection }: {
           const negative = column.segments.filter((segment) => segment.amount < 0);
           const positiveTotal = positive.reduce((sum, segment) => sum + segment.amount, 0);
           const negativeTotal = negative.reduce((sum, segment) => sum - segment.amount, 0);
+          const isEmptyColumn = positiveTotal === 0 && negativeTotal === 0;
+          const zeroBarColors = column.segments.map((segment, index) => {
+            const shade = column.segments.length <= 1 ? 100 : 80 + (20 * index) / (column.segments.length - 1);
+            return variant === 'categories'
+              ? `color-mix(in srgb, ${segment.color} ${shade}%, var(--bg))`
+              : segment.color;
+          });
+          const zeroBarBackground = zeroBarColors.length > 1
+            ? `linear-gradient(to right, ${zeroBarColors.map((color, index) => `${color} ${index / zeroBarColors.length * 100}% ${(index + 1) / zeroBarColors.length * 100}%`).join(', ')})`
+            : zeroBarColors[0] ?? column.color;
           const renderSegment = (segment: SpendingColumn['segments'][number], index: number) => {
             const dimmed = Boolean(selection) && !(variant === 'people' && selection?.columnId === 'all')
               && !(column.id === selection?.columnId && (!selection.segmentId || segment.id === selection.segmentId));
@@ -68,25 +78,23 @@ export function SpendingColumns({ columns, currency, variant, selection }: {
                       label: segment.label, amount: segment.amount, color: segment.color, source: 'focus' });
                   }}
                   onBlur={() => setTooltip((value) => value?.source === 'focus' ? null : value)}
-                >
-                  {variant === 'categories' && <span className="spending-segment-label">{segment.label} {formatCompact(segment.amount, currency, 0)}</span>}
-                </button>;
+                />;
           };
           return <div className={`spending-column${isSelectedPerson ? ' is-selected' : ''}`} key={column.id} style={{ '--column-color': column.color } as CSSProperties}>
             <div className="spending-column-plot">
-              <div className="spending-column-stack" style={{ bottom: `${maxNegative / extent * 100}%`, height: `${positiveTotal / extent * 100}%` }}>
+              <div className="spending-column-stack" style={{ bottom: `${maxNegative / extent * 100}%`, height: isEmptyColumn ? '1px' : `${positiveTotal / extent * 100}%` }}>
                 <div className="spending-column-heading">
                   {variant === 'categories' && <button className="spending-column-label" type="button" onClick={column.onSelect}
                     aria-label={`Filter table by ${column.description ?? column.label}`} title={column.description ?? column.label}>
                     {column.label}
                   </button>}
-                  <button className="spending-column-total" type="button" onClick={column.onSelect}
+                  {column.total !== 0 && <button className="spending-column-total" type="button" onClick={column.onSelect}
                     aria-label={`Filter table by ${column.description ?? column.label}: ${formatMoney(column.total, currency)}`}
                     aria-pressed={variant === 'people' ? isSelectedPerson : undefined}>
                     {formatCompact(column.total, currency, 0)}
-                  </button>
+                  </button>}
                 </div>
-                {positive.map(renderSegment)}
+                {isEmptyColumn ? <span className="spending-column-zero-bar" aria-hidden="true" style={{ background: zeroBarBackground }} /> : positive.map(renderSegment)}
               </div>
               {negative.length > 0 && <div className="spending-column-stack spending-column-refunds"
                 style={{ top: `${maxPositive / extent * 100}%`, height: `${negativeTotal / extent * 100}%` }}>

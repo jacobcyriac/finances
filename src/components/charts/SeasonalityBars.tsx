@@ -20,7 +20,7 @@ interface SeasonalityBarsProps {
 
 /** Average spend per calendar month as a bar chart. */
 export function SeasonalityBars({ data, currency, height = 200 }: SeasonalityBarsProps) {
-  if (!data.some((d) => d.avg > 0)) {
+  if (data.length === 0) {
     return <p className="text-sm text-[var(--text-faint)]">Not enough data yet.</p>;
   }
   const rows = data.map((d) => ({
@@ -41,7 +41,7 @@ export function SeasonalityBars({ data, currency, height = 200 }: SeasonalityBar
           axisLine={false}
         />
         <Tooltip content={<Tip />} cursor={{ fill: 'var(--line)', opacity: 0.35 }} />
-        <Bar dataKey="Avg / month" radius={[3, 3, 0, 0]}>
+        <Bar dataKey="Avg / month" radius={[3, 3, 0, 0]} minPointSize={1}>
           {rows.map((row, i) => (
             <Cell key={row.month} fill={SERIES[i % SERIES.length]} />
           ))}

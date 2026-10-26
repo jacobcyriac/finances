@@ -5,18 +5,6 @@
 
 :root {
   color-scheme: light dark;
-  --font-body: 'Inter', system-ui, sans-serif;
-  --font-display: 'Instrument Serif', Georgia, serif;
-  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
-  --type-caption: 10px;
-  --type-chart-label: 8px;
-  --type-label: 11px;
-  --type-body: 12px;
-  --type-control: 12px;
-  --type-heading: 32px;
-  --type-chart-heading: 13px;
-  --type-metric-primary: clamp(48px, 20cqi, 72px);
-  --type-metric-secondary: 36px;
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -28,18 +16,19 @@
   --radius: 3px;
   --control-height: 38px;
   --control-radius: var(--radius);
-  --control-font-size: var(--type-control);
-  --control-label-size: var(--type-caption);
   --control-row-gap: var(--space-3);
   --page-width: 1920px;
   --page-inset: clamp(24px, 8vw, 120px);
   --block-gap: clamp(48px, 6vw, 88px);
+  --module-column-gap: 40px;
   --bg: light-dark(#faf9f6, #1d211d);
   --bg-2: var(--bg);
   --surface: var(--bg);
   --surface-2: light-dark(#eeede7, #292e28);
+  --surface-transaction-detail-mix: 8%;
   --line: light-dark(#e8e7e0, #343b32);
   --line-strong: light-dark(#cfd2c7, #4e574b);
+  --section-divider: color-mix(in srgb, var(--brand) 40%, var(--line));
   --text: light-dark(#20231f, #efeee6);
   --text-dim: light-dark(#555b50, #c5c8bb);
   --text-faint: light-dark(#74786f, #a0a696);

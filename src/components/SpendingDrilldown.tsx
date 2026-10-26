@@ -1,12 +1,13 @@
 import { memo, startTransition, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ChevronRight, CircleMinus, CirclePlus } from 'lucide-react';
 import type { CSSProperties, Dispatch, SetStateAction } from 'react';
-import { formatMoney } from '../lib/money';
+import { formatMoney, formatMoneyWhole } from '../lib/money';
 import { isRecurringSpend } from '../lib/recurring-spend';
 import type { Snapshot } from '../types';
 
 export interface DrilldownChartFilter {
   source?: 'categories' | 'monthly';
+  selectionOrigin?: 'chart' | 'pills';
   month?: string;
   groupId?: string;
   groupName?: string;
@@ -84,7 +85,8 @@ export function SpendingDrilldown({ rows, periodMonths, chartFilter, onChartFilt
   currency: Snapshot['currency'];
 }) {
   const [activeColumn, setActiveColumn] = useState(0);
-  const [expandedGroupId, setExpandedGroupId] = useState<string | null | undefined>(undefined);
+  const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string> | null>(null);
+  const [optimisticCollapsedGroupId, setOptimisticCollapsedGroupId] = useState<string | null>(null);
   const [pendingAllSelection, setPendingAllSelection] = useState(false);
   const [expandedPayeeId, setExpandedPayeeId] = useState<string | null>(selectedPayee);
   const [closingPayee, setClosingPayee] = useState<string | null>(null);
@@ -117,6 +119,7 @@ export function SpendingDrilldown({ rows, periodMonths, chartFilter, onChartFilt
   useEffect(() => {
     if (pendingGroupSelection.current) cancelPendingGroupSelection();
     setPendingAllSelection(false);
+    setOptimisticCollapsedGroupId(null);
   }, [chartFilter]);
   useEffect(() => {
     cancelPendingPayeeSelection();
@@ -243,8 +246,13 @@ export function SpendingDrilldown({ rows, periodMonths, chartFilter, onChartFilt
     .map(({ item, transactions }) => [item.id, [...transactions].sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id))])),
   [payeeGroups, expandedPayeeId, closingPayee]);
 
-  const allCategories = useMemo(() => ({ ...summarize('__all_categories__', 'All categories', categoryRows), categoryColor: dominantCategoryColor(categoryRows) }), [categoryRows]);
+  const allCategories = useMemo(() => summarize('__all_categories__', 'All categories', categoryRows), [categoryRows]);
   const firstExpandableGroupId = groups.find((group) => (group.categoryIds?.length ?? 0) > 1)?.id;
+  const drilldownAccentColor = chartFilter.categoryId
+    ? categories.find((item) => item.id === chartFilter.categoryId)?.categoryColor ?? 'var(--line-strong)'
+    : chartFilter.groupId
+      ? groups.find((group) => group.id === chartFilter.groupId)?.categoryColor ?? 'var(--line-strong)'
+      : 'var(--line-strong)';
   const selectCategory = (category: DrilldownItem) => {
     cancelPendingGroupSelection();
     cancelPendingPayeeSelection();
@@ -276,11 +284,11 @@ export function SpendingDrilldown({ rows, periodMonths, chartFilter, onChartFilt
         <ul>
           {[
             <li className="spending-drilldown-group spending-drilldown-group-block" key="all-categories">
-                <div className={`spending-drilldown-group-row spending-drilldown-all-row${isAllSelected ? ' is-selected' : ''}`} style={{ '--category-color': allCategories.categoryColor ?? 'var(--line-strong)', '--spend-fill-width': '80%' } as CSSProperties}>
+                <div className={`spending-drilldown-group-row spending-drilldown-all-row${isAllSelected ? ' is-selected' : ''}`} style={{ '--category-color': 'var(--text-dim)', '--spend-fill-width': '80%' } as CSSProperties}>
                   <span className="spending-drilldown-group-spacer" aria-hidden="true"><CirclePlus className="spending-drilldown-group-symbol is-disabled" size={16} /></span>
                   <button type="button" className="spending-drilldown-group-filter" aria-pressed={isAllSelected} onClick={selectAllCategories}>
                     <span className="spending-drilldown-item-name">All</span>
-                    <strong>{formatMoney(allCategories.total, currency)}</strong>
+                    <strong>{formatMoneyWhole(allCategories.total, currency)}</strong>
                     <ChevronRight size={14} aria-hidden="true" />
                   </button>
                 </div>
@@ -288,37 +296,67 @@ export function SpendingDrilldown({ rows, periodMonths, chartFilter, onChartFilt
             ...groups.map((group) => {
                 const groupCategories = categories.filter((item) => item.groupId === group.id);
                 const canExpand = groupCategories.length > 1;
-                const isExpanded = canExpand && (expandedGroupId === undefined
+                const isExpanded = canExpand && (expandedGroupIds === null
                   ? group.id === firstExpandableGroupId
-                  : expandedGroupId === group.id);
+                  : expandedGroupIds.has(group.id));
                 const groupColor = group.categoryColor ?? 'var(--line-strong)';
-                const isSelectedGroup = chartFilter.groupId === group.id && !chartFilter.categoryId;
+                const isSelectedGroup = chartFilter.groupId === group.id && (!chartFilter.categoryId || optimisticCollapsedGroupId === group.id);
                 return <li className="spending-drilldown-group-block" key={`group-${group.id}`}><ul>
                   <li className="spending-drilldown-group">
-                    <button
-                      type="button"
-                      className={`spending-drilldown-group-row has-category-outline has-spend-bar${isSelectedGroup ? ' is-selected' : ''}`}
+                    <div
+                      className={`spending-drilldown-group-header${isSelectedGroup ? ' is-selected' : ''}`}
                       style={{
                         '--category-color': groupColor,
                         '--spend-fill-width': `${largestGroupTotal > 0 ? Math.min(80, Math.max(0, group.total / largestGroupTotal * 80)) : 0}%`,
                       } as CSSProperties}
-                      aria-expanded={canExpand ? isExpanded : undefined}
-                      aria-pressed={isSelectedGroup}
-                      onClick={() => {
+                    >
+                      <button
+                        type="button"
+                        className="spending-drilldown-group-toggle"
+                        aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${group.label}`}
+                        aria-expanded={canExpand ? isExpanded : undefined}
+                        disabled={!canExpand}
+                        onClick={() => {
+                          setExpandedGroupIds((current) => {
+                            const next = new Set(current ?? (firstExpandableGroupId ? [firstExpandableGroupId] : []));
+                            if (next.has(group.id)) next.delete(group.id);
+                            else next.add(group.id);
+                            return next;
+                          });
+                          if (isExpanded && chartFilter.groupId === group.id && chartFilter.categoryId) {
+                            setOptimisticCollapsedGroupId(group.id);
+                            selectGroupAfterPaint({
+                              ...chartFilter,
+                              source: 'categories',
+                              groupId: group.id,
+                              groupName: group.label,
+                              categoryId: undefined,
+                              categoryName: undefined,
+                              categoryIds: group.categoryIds,
+                            });
+                          }
+                        }}
+                      >
+                        {isExpanded ? <CircleMinus className="spending-drilldown-group-symbol" size={16} aria-hidden="true" /> : <CirclePlus className="spending-drilldown-group-symbol" size={16} aria-hidden="true" />}
+                      </button>
+                      <button
+                        type="button"
+                        className="spending-drilldown-group-select"
+                        aria-pressed={isSelectedGroup}
+                        onClick={() => {
                         cancelPendingPayeeSelection();
                         setPendingAllSelection(false);
                         setExpandedPayeeId(null);
-                        setExpandedGroupId(canExpand ? (isExpanded ? null : group.id) : null);
                         navigateToColumn(1);
                         if (isSelectedGroup && !selectedPayee) cancelPendingGroupSelection();
                         else selectGroupAfterPaint({ ...chartFilter, source: 'categories', groupId: group.id, groupName: group.label, categoryId: undefined, categoryName: undefined, categoryIds: group.categoryIds });
                       }}
-                    >
-                      {isExpanded ? <CircleMinus className="spending-drilldown-group-symbol" size={16} aria-hidden="true" /> : <CirclePlus className={`spending-drilldown-group-symbol${canExpand ? '' : ' is-disabled'}`} size={16} aria-hidden="true" />}
+                      >
                       <span className="spending-drilldown-item-name">{group.label}</span>
-                      <strong>{formatMoney(group.total, currency)}</strong>
+                      <strong>{formatMoneyWhole(group.total, currency)}</strong>
                       <ChevronRight size={14} aria-hidden="true" />
-                    </button>
+                      </button>
+                    </div>
                   </li>
                   {groupCategories.map((item) => <li className={`spending-drilldown-category-child${isExpanded ? ' is-expanded' : ''}`} key={item.id} aria-hidden={!isExpanded}>
                     <button
@@ -333,7 +371,7 @@ export function SpendingDrilldown({ rows, periodMonths, chartFilter, onChartFilt
                       onClick={() => selectCategory(item)}
                     >
                       <span className="spending-drilldown-item-name" title={item.label}>{item.label}</span>
-                      <strong>{formatMoney(item.total, currency)}</strong>
+                      <strong>{formatMoneyWhole(item.total, currency)}</strong>
                       <ChevronRight size={14} aria-hidden="true" />
                     </button>
                   </li>)}
@@ -342,16 +380,15 @@ export function SpendingDrilldown({ rows, periodMonths, chartFilter, onChartFilt
           ]}
         </ul>
       </section>
-      <section className={`spending-drilldown-column${activeColumn === 1 ? ` is-active is-${slideDirection}` : ''}`} aria-label="Payees and transactions">
+      <section className={`spending-drilldown-column spending-drilldown-results${activeColumn === 1 ? ` is-active is-${slideDirection}` : ''}`} style={{ '--drilldown-accent-color': drilldownAccentColor } as CSSProperties} aria-label="Payees and transactions">
         <ul>
           {payeeGroups.map(({ item, monthlyAverage }) => {
             const isExpanded = expandedPayeeId === item.id;
             const hasVisibleTransactions = isExpanded || closingPayee === item.id;
-            return <li className="spending-drilldown-payee" key={item.id}>
+            return <li className="spending-drilldown-payee" key={item.id} style={{ '--category-color': item.categoryColor ?? 'var(--line-strong)' } as CSSProperties}>
               <button
                 type="button"
                 className={`spending-drilldown-payee-row has-category-outline${isExpanded ? ' is-selected' : ''}`}
-                style={{ '--category-color': item.categoryColor ?? 'var(--line-strong)' } as CSSProperties}
                 aria-expanded={isExpanded}
                 aria-pressed={isExpanded}
                 onClick={() => {

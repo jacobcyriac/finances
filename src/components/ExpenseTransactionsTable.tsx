@@ -3,6 +3,7 @@ import { ChevronDown, ChevronUp, X } from 'lucide-react';
 import { DropdownMenu } from './ui/DropdownMenu';
 import { TypingText } from './ui/FilterAnimations';
 import { SpendingDrilldown, type DrilldownChartFilter, type DrilldownExpenseRow } from './SpendingDrilldown';
+import { TransactionsCompact } from './TransactionsCompact';
 import { buildIndexes, isTransfer } from '../analysis/_shared';
 import { spendingGroupColor } from '../analysis/rolling-spending';
 import { formatMoney } from '../lib/money';
@@ -37,7 +38,7 @@ function QueryFilterChip({ label, onRemove, color }: { label: string; onRemove: 
   </span>;
 }
 
-export function ExpenseTransactionsTable({ snapshot, startMonth, endMonth, chartFilter, onChartFilterChange, periodControl, onFilteredSummaryChange, onFilteredChartDataChange, onPersonTotalsChange, personFilters, onPersonFiltersChange, onClearAllFilters, clearAllSignal, moduleVisibility }: {
+export function ExpenseTransactionsTable({ snapshot, startMonth, endMonth, chartFilter, onChartFilterChange, periodControl, onFilteredSummaryChange, onFilteredChartDataChange, onPersonTotalsChange, personFilters, onPersonFiltersChange, onClearAllFilters, clearAllSignal, moduleVisibility, compactView }: {
   snapshot: Snapshot;
   startMonth: string;
   endMonth: string;
@@ -52,6 +53,7 @@ export function ExpenseTransactionsTable({ snapshot, startMonth, endMonth, chart
   onClearAllFilters: () => void;
   clearAllSignal: number;
   moduleVisibility: DashboardModuleVisibility;
+  compactView: boolean;
 }) {
   const [search, setSearch] = useState('');
   const [accountFilters, setAccountFilters] = useState<string[]>([]);
@@ -158,23 +160,24 @@ export function ExpenseTransactionsTable({ snapshot, startMonth, endMonth, chart
   const filteredRows = useMemo(() => selectedPayee
     ? matchingRows.filter((row) => row.transaction === selectedPayee)
     : matchingRows, [matchingRows, selectedPayee]);
+  const chartSelectedPayee = compactView ? null : selectedPayee;
 
   const personTotals = useMemo(() => {
     const categoryIds = chartFilter.categoryIds ? new Set(chartFilter.categoryIds) : null;
     return searchedRows.reduce<Record<string, number>>((totals, row) => {
       if (chartFilter.month && row.date.slice(0, 7) !== chartFilter.month) return totals;
       if (categoryIds && !categoryIds.has(row.categoryId)) return totals;
-      if (selectedPayee && row.transaction !== selectedPayee) return totals;
+      if (chartSelectedPayee && row.transaction !== chartSelectedPayee) return totals;
       totals[row.person] = (totals[row.person] ?? 0) + row.amount;
       return totals;
     }, {});
-  }, [searchedRows, chartFilter.month, chartFilter.categoryIds, selectedPayee]);
+  }, [searchedRows, chartFilter.month, chartFilter.categoryIds, chartSelectedPayee]);
 
   useEffect(() => onPersonTotalsChange(personTotals), [personTotals, onPersonTotalsChange]);
 
-  const chartRows = useMemo(() => selectedPayee
-    ? personScopedRows.filter((row) => row.transaction === selectedPayee)
-    : personScopedRows, [personScopedRows, selectedPayee]);
+  const chartRows = useMemo(() => chartSelectedPayee
+    ? personScopedRows.filter((row) => row.transaction === chartSelectedPayee)
+    : personScopedRows, [personScopedRows, chartSelectedPayee]);
 
   const filteredChartData = useMemo(() => chartRows.reduce((data, row) => {
     data.totals[row.categoryId] = (data.totals[row.categoryId] ?? 0) + row.amount;
@@ -248,7 +251,8 @@ export function ExpenseTransactionsTable({ snapshot, startMonth, endMonth, chart
   const showAllTransactionsPrefix = !search.trim() && !chartFilter.groupName && !selectedPayee && accountFilters.length === 0 && personFilters.length === 0 && categoryFilters.length === 0;
   const chartCategoryColor = chartFilter.categoryId ? rows.find((row) => row.categoryId === chartFilter.categoryId)?.categoryColor : undefined;
   const clearAllFilters = () => onClearAllFilters();
-  const hasTransactionModules = moduleVisibility.drilldown || moduleVisibility.payees || moduleVisibility.transactions;
+  const showDrilldown = compactView ? moduleVisibility.transactionsCompact : moduleVisibility.drilldown;
+  const hasTransactionModules = showDrilldown || moduleVisibility.payees || moduleVisibility.transactions;
 
   return <>
     {moduleVisibility.search && <div className="transaction-query-wrap">
@@ -273,15 +277,24 @@ export function ExpenseTransactionsTable({ snapshot, startMonth, endMonth, chart
     </section>
     </div>}
     {hasTransactionModules && <section className="panel table-panel expense-table-panel dashboard-block">
-    {moduleVisibility.drilldown && <SpendingDrilldown
-      rows={drilldownRows}
-      periodMonths={periodMonths}
-      chartFilter={chartFilter}
-      onChartFilterChange={onChartFilterChange}
-      selectedPayee={selectedPayee}
-      onSelectedPayeeChange={setSelectedPayee}
-      currency={snapshot.currency}
-    />}
+    {showDrilldown && (compactView
+      ? <TransactionsCompact
+        rows={drilldownRows}
+        periodMonths={periodMonths}
+        chartFilter={chartFilter}
+        selectedPayee={selectedPayee}
+        onSelectedPayeeChange={setSelectedPayee}
+        currency={snapshot.currency}
+      />
+      : <SpendingDrilldown
+        rows={drilldownRows}
+        periodMonths={periodMonths}
+        chartFilter={chartFilter}
+        onChartFilterChange={onChartFilterChange}
+        selectedPayee={selectedPayee}
+        onSelectedPayeeChange={setSelectedPayee}
+        currency={snapshot.currency}
+      />)}
     {moduleVisibility.payees && <section className="top-payees-module" aria-labelledby="top-payees-heading">
       <div className="top-payees-heading">
         <h2 id="top-payees-heading">Top payees</h2>

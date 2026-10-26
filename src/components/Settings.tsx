@@ -122,7 +122,7 @@ export function Settings({ snapshot, settings, trailing12, onChange, onClose }: 
 
         <section className="mb-8">
           <h3 className="label mb-1">Excluded categories</h3>
-          <p className="mb-3 text-[11px] text-[var(--text-faint)]">
+          <p className="mb-3 text-xs text-[var(--text-faint)]">
             Left out of spending, burn rate and FIRE math. Useful for costs you know will disappear.
           </p>
 
@@ -157,7 +157,7 @@ export function Settings({ snapshot, settings, trailing12, onChange, onClose }: 
                       <ChevronRight size={14} aria-hidden="true" className="text-[var(--text-faint)] transition group-open:rotate-90" />
                       {g.name}
                     </span>
-                    <span className="num text-[11px] text-[var(--text-faint)]">
+                    <span className="num text-xs text-[var(--text-faint)]">
                       {n > 0 ? `${n} excluded` : `${g.categories.length}`}
                     </span>
                   </summary>
@@ -243,7 +243,7 @@ export function Settings({ snapshot, settings, trailing12, onChange, onClose }: 
           </div>
         </section>
 
-        <p className="mt-8 text-[11px] text-[var(--text-faint)]">
+        <p className="mt-8 text-xs text-[var(--text-faint)]">
           Settings are stored in this browser only.
         </p>
       </aside>
@@ -283,7 +283,7 @@ function NumberRow({
           </span>
         )}
       </div>
-      {hint && <p className="mt-1 text-[11px] text-[var(--text-faint)]">{hint}</p>}
+      {hint && <p className="mt-1 text-xs text-[var(--text-faint)]">{hint}</p>}
     </div>
   );
 }

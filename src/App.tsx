@@ -7,6 +7,7 @@ import { Dashboard as NetWorthDashboard } from './components/Dashboard';
 import { MonthlySpendingBars } from './components/charts/MonthlySpendingBars';
 import { PersonSpendingBars } from './components/charts/PersonSpendingBars';
 import { GroupStackedBars } from './components/charts/GroupStackedBars';
+import { CategoryPills } from './components/CategoryPills';
 import { ExpenseTransactionsTable } from './components/ExpenseTransactionsTable';
 import { DropdownMenu } from './components/ui/DropdownMenu';
 import { TickerNumber, TypingText } from './components/ui/FilterAnimations';
@@ -15,7 +16,7 @@ import { loadCachedSnapshot, saveCachedSnapshot } from './snapshot/cache';
 import { availableSpendingRanges, rollingSpending } from './analysis/rolling-spending';
 import type { SpendingRangePreset } from './analysis/rolling-spending';
 import { formatMoney } from './lib/money';
-import { DASHBOARD_MODULES, loadDashboardModules, saveDashboardModules, type DashboardModuleId, type DashboardModuleVisibility } from './lib/dashboard-modules';
+import { DASHBOARD_MODULES, loadDashboardModulesByTab, saveDashboardModulesByTab, type DashboardModuleId, type DashboardModuleVisibility, type DashboardViewTab } from './lib/dashboard-modules';
 import type { ConnectRequest } from './types';
 
 const MemoNetWorthDashboard = memo(NetWorthDashboard);
@@ -69,7 +70,7 @@ function PeriodControl({ options, value, onChange, onClear, labelOverride, varia
 }
 
 function SettingsDrawer({
-  onClose, theme, onThemeChange, refreshStatus, refreshLabel, onUpdate, updating, updateDisabled, onDisconnect, disconnecting, modules, onModuleToggle,
+  onClose, theme, onThemeChange, refreshStatus, refreshLabel, onUpdate, updating, updateDisabled, onDisconnect, disconnecting, modules, showModules, onModuleToggle,
 }: {
   onClose: () => void;
   theme: ThemePreference;
@@ -82,6 +83,7 @@ function SettingsDrawer({
   onDisconnect: () => void;
   disconnecting: boolean;
   modules: DashboardModuleVisibility;
+  showModules: boolean;
   onModuleToggle: (id: DashboardModuleId) => void;
 }) {
   return <div className="settings-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
@@ -104,7 +106,7 @@ function SettingsDrawer({
         <h3>Appearance</h3>
         <ThemeControl value={theme} onChange={onThemeChange} />
       </section>
-      <section className="settings-section settings-modules">
+      {showModules && <section className="settings-section settings-modules">
         <h3>Dashboard modules</h3>
         <div className="settings-module-list">
           {DASHBOARD_MODULES.map((module) => <button
@@ -119,7 +121,7 @@ function SettingsDrawer({
             <span className={`settings-toggle-track${modules[module.id] ? ' is-on' : ''}`} aria-hidden="true"><span /></span>
           </button>)}
         </div>
-      </section>
+      </section>}
       <div className="settings-drawer-footer">
         <button className="btn-bordered is-danger settings-disconnect-button" type="button" onClick={onDisconnect} disabled={disconnecting}>
           {disconnecting ? 'Disconnecting…' : 'Disconnect'}
@@ -139,7 +141,7 @@ function MetricCard({ label, value, detail, color, variant }: { label: string; v
   </div>;
 }
 
-function SpendingDashboard({ snapshot, rangeOptions, rangeValue, chartFilter, onChartFilterChange, periodControl, filteredSummary, onFilteredSummaryChange, filteredChartData, onFilteredChartDataChange, personTotals, onPersonTotalsChange, personFilters, onPersonFiltersChange, onClearAllFilters, clearAllSignal, moduleVisibility }: {
+function SpendingDashboard({ snapshot, rangeOptions, rangeValue, chartFilter, onChartFilterChange, periodControl, filteredSummary, onFilteredSummaryChange, filteredChartData, onFilteredChartDataChange, personTotals, onPersonTotalsChange, personFilters, onPersonFiltersChange, onClearAllFilters, clearAllSignal, moduleVisibility, presentation = 'expenses' }: {
   snapshot: NonNullable<Awaited<ReturnType<typeof getSnapshot>>>;
   rangeOptions: SpendingRangePreset[];
   rangeValue: string;
@@ -157,6 +159,7 @@ function SpendingDashboard({ snapshot, rangeOptions, rangeValue, chartFilter, on
   onClearAllFilters: () => void;
   clearAllSignal: number;
   moduleVisibility: DashboardModuleVisibility;
+  presentation?: DashboardViewTab;
 }) {
   const defaultRange = rangeOptions.find((option) => option.value === 'rolling-12')
     ?? rangeOptions.filter((option) => option.kind === 'rolling').at(-1)
@@ -184,6 +187,15 @@ function SpendingDashboard({ snapshot, rangeOptions, rangeValue, chartFilter, on
       .map((category) => ({ ...category, total: source ? source[category.id] ?? 0 : category.total }));
     return { ...group, categories, total: categories.reduce((sum, category) => sum + category.total, 0) };
   });
+  const selectedCategoryGroup = chartFilter.groupId
+    ? categoryGroups.find((group) => group.id === chartFilter.groupId)
+    : undefined;
+  const categoryPillGroup = presentation === 'compact' && chartFilter.selectionOrigin === 'pills'
+    ? undefined
+    : selectedCategoryGroup;
+  const categoryPillItems = presentation !== 'compact' && categoryPillGroup
+    ? categoryPillGroup.categories.map((category) => ({ ...category, color: categoryPillGroup.color, groupId: categoryPillGroup.id }))
+    : categoryGroups.flatMap((group) => group.categories.map((category) => ({ ...category, color: group.color, groupId: group.id })));
   const monthlyGroups = chartFilter.groupId && chartFilter.categoryIds && (chartFilter.source === 'categories' || chartFilter.categoryId)
     ? categoryGroups
       .filter((group) => group.id === chartFilter.groupId)
@@ -208,6 +220,7 @@ function SpendingDashboard({ snapshot, rangeOptions, rangeValue, chartFilter, on
     onChartFilterChange({
       ...chartFilter,
       source: 'categories',
+      selectionOrigin: 'chart',
       groupId,
       groupName: group.name,
       categoryId: undefined,
@@ -229,6 +242,7 @@ function SpendingDashboard({ snapshot, rangeOptions, rangeValue, chartFilter, on
     onChartFilterChange({
       ...chartFilter,
       source: 'categories',
+      selectionOrigin: 'chart',
       groupId,
       groupName: group.name,
       categoryId,
@@ -263,10 +277,10 @@ function SpendingDashboard({ snapshot, rangeOptions, rangeValue, chartFilter, on
       : { ...chartFilter, month });
   };
 
-  return <main className="dashboard-shell ledger-layout">
+  return <main className={`dashboard-shell ledger-layout${presentation === 'compact' ? ' compact-dashboard' : ''}`}>
     <div className="spending-overview">
       {(moduleVisibility.summary || moduleVisibility.people || moduleVisibility.monthly) && <div className="spending-top-row">
-        {moduleVisibility.summary && <section className="spending-summary" aria-label={`${range.label} spending summary`}>
+        {moduleVisibility.summary && <section className={`spending-summary${moduleVisibility.summaryPeople ? ` has-summary-people-chart${moduleVisibility.peopleSelector ? '' : ' without-person-selector'}` : ''}`} aria-label={`${range.label} spending summary`}>
           <div className="metric-grid metric-grid-overview">
             {filteredSummary && !filteredSummary.recurring
               ? <MetricCard variant="total" label="Total spending" value={fmtWhole(filteredSummary.total)} detail={`${filteredSummary.transactionCount.toLocaleString()} transactions`} />
@@ -275,6 +289,31 @@ function SpendingDashboard({ snapshot, rangeOptions, rangeValue, chartFilter, on
                 <MetricCard variant="monthly-average" label="Monthly average" value={fmtWhole(filteredSummary?.monthlyAverage ?? period.totals.average)} detail="/month" />
               </>}
           </div>
+          {moduleVisibility.peopleSelector && <div className="spending-person-selector" role="group" aria-label="Filter spending by person">
+            {[
+              { label: 'All', value: null },
+              { label: 'Prachi', value: 'Prachi' },
+              { label: 'Jacob', value: 'Jacob' },
+              { label: 'Joint', value: 'Joint' },
+            ].map(({ label, value }) => {
+              const isActive = value === null ? personFilters.length === 0 : personFilters.length === 1 && personFilters[0] === value;
+              return <button
+                key={label}
+                type="button"
+                className={isActive ? 'is-active' : ''}
+                aria-pressed={isActive}
+                onClick={() => onPersonFiltersChange(value ? [value] : [])}
+              >{label}</button>;
+            })}
+          </div>}
+          {moduleVisibility.summaryPeople && <div className="summary-people-chart">
+            <PersonSpendingBars
+              totals={personTotals}
+              currency={currency}
+              selectedPerson={personFilters[0] ?? null}
+              onSelect={(person) => onPersonFiltersChange((current) => person && !(current.length === 1 && current[0] === person) ? [person] : [])}
+            />
+          </div>}
         </section>}
 
         {moduleVisibility.people && <section className="person-spending-block dashboard-block" aria-label="Spend by person">
@@ -300,8 +339,32 @@ function SpendingDashboard({ snapshot, rangeOptions, rangeValue, chartFilter, on
       </div>}
 
       {moduleVisibility.categories && <section className="panel chart-panel categories-block dashboard-block">
-        <div className="section-heading"><h2>Categories</h2></div>
-        <GroupStackedBars key={range.value} groups={categoryGroups} currency={currency} selection={chartFilter.groupId ? { columnId: chartFilter.groupId, segmentId: chartFilter.categoryId } : undefined} onSelectGroup={selectGroup} onSelectCategory={selectCategory} />
+        {presentation !== 'compact' && <div className="section-heading"><h2>Categories</h2></div>}
+        <GroupStackedBars key={range.value} groups={categoryGroups} currency={currency} selection={chartFilter.groupId ? { columnId: chartFilter.groupId } : undefined} onSelectGroup={selectGroup} />
+      </section>}
+      {moduleVisibility.categoryPills && categoryGroups.length > 0 && <section className="category-pills-module" aria-label="Category totals">
+        <CategoryPills
+          categories={categoryPillItems}
+          currency={currency}
+          selectedCategoryId={chartFilter.categoryId}
+          allTotal={categoryPillGroup?.total ?? categoryGroups.reduce((total, group) => total + group.total, 0)}
+          groupColor={categoryPillGroup?.color ?? 'var(--text-muted)'}
+          filteredGroupId={presentation === 'compact' && chartFilter.selectionOrigin === 'chart' ? chartFilter.groupId : undefined}
+          showAll={presentation !== 'compact'}
+          onSelect={(categoryId) => categoryId === null
+            ? onChartFilterChange(chartFilter.month ? { month: chartFilter.month } : {})
+            : (() => {
+                const groupId = categoryPillItems.find((category) => category.id === categoryId)?.groupId;
+                const group = period.groups.find((item) => item.id === groupId);
+                const category = group?.categories.find((item) => item.id === categoryId);
+                if (!group || !category) return;
+                if (chartFilter.categoryId === category.id) {
+                  onChartFilterChange(chartFilter.month ? { month: chartFilter.month } : {});
+                  return;
+                }
+                onChartFilterChange({ ...chartFilter, source: 'categories', selectionOrigin: 'pills', groupId: group.id, groupName: group.name, categoryId: category.id, categoryName: category.name, categoryIds: [category.id] });
+              })()}
+        />
       </section>}
     </div>
 
@@ -320,6 +383,7 @@ function SpendingDashboard({ snapshot, rangeOptions, rangeValue, chartFilter, on
       onClearAllFilters={onClearAllFilters}
       clearAllSignal={clearAllSignal}
       moduleVisibility={moduleVisibility}
+      compactView={presentation === 'compact'}
     />
 
   <footer>Read-only analysis · Data is processed in this browser</footer>
@@ -339,7 +403,7 @@ export default function App() {
   const [cacheReady, setCacheReady] = useState(false);
   const apiConnected = useRef(false);
   const skipNextUpdate = useRef(false);
-  const [activeTab, setActiveTab] = useState<'expenses' | 'net-worth'>('expenses');
+  const [activeTab, setActiveTab] = useState<DashboardViewTab | 'net-worth'>('expenses');
   const [theme, setTheme] = useState<ThemePreference>(getSavedTheme);
   const [rangeValue, setRangeValue] = useState('rolling-12');
   const [chartFilter, setChartFilter] = useState<ChartTableFilter>({});
@@ -368,9 +432,17 @@ export default function App() {
     return () => document.removeEventListener('click', onPageClick);
   }, [session.connected, handleClearAllFilters]);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [moduleVisibility, setModuleVisibility] = useState<DashboardModuleVisibility>(loadDashboardModules);
-  const toggleModule = (id: DashboardModuleId) => setModuleVisibility((current) => ({ ...current, [id]: !current[id] }));
-  useEffect(() => saveDashboardModules(moduleVisibility), [moduleVisibility]);
+  const [moduleVisibilityByTab, setModuleVisibilityByTab] = useState(loadDashboardModulesByTab);
+  const moduleVisibility = activeTab === 'net-worth' ? moduleVisibilityByTab.expenses : moduleVisibilityByTab[activeTab];
+  const toggleModule = (id: DashboardModuleId) => {
+    if (activeTab === 'net-worth') return;
+    const next = {
+      ...moduleVisibilityByTab,
+      [activeTab]: { ...moduleVisibilityByTab[activeTab], [id]: !moduleVisibilityByTab[activeTab][id] },
+    };
+    saveDashboardModulesByTab(next);
+    setModuleVisibilityByTab(next);
+  };
   useEffect(() => {
     if (theme === 'system') document.documentElement.removeAttribute('data-theme');
     else document.documentElement.setAttribute('data-theme', theme);
@@ -472,9 +544,18 @@ export default function App() {
             type="button"
             role="tab"
             aria-selected={activeTab === 'expenses'}
-            aria-controls="expenses-panel"
+            aria-controls="spending-panel"
             onClick={() => setActiveTab('expenses')}
           >Expenses</button>
+          <button
+            id="compact-tab"
+            className="app-tab"
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'compact'}
+            aria-controls="spending-panel"
+            onClick={() => setActiveTab('compact')}
+          >Compact</button>
           <button
             id="net-worth-tab"
             className="app-tab"
@@ -487,7 +568,7 @@ export default function App() {
         </div>
         </div>
         <div className="app-toolbar-actions">
-          {activeTab === 'expenses' && <PeriodControl {...periodProps} variant="toolbar" />}
+          {activeTab !== 'net-worth' && <PeriodControl {...periodProps} variant="toolbar" />}
           <button className="settings-trigger" type="button" aria-label="Open settings" aria-haspopup="dialog" aria-expanded={settingsOpen} onClick={() => setSettingsOpen(true)}>
             <SettingsIcon aria-hidden="true" />
           </button>
@@ -506,9 +587,10 @@ export default function App() {
       onDisconnect={() => disconnectMutation.mutate()}
       disconnecting={disconnectMutation.isPending}
       modules={moduleVisibility}
+      showModules={activeTab !== 'net-worth'}
       onModuleToggle={toggleModule}
     />}
-    <section id="expenses-panel" className="app-tabpanel" role="tabpanel" aria-labelledby="expenses-tab" hidden={activeTab !== 'expenses'}>
+    <section id="spending-panel" className="app-tabpanel" role="tabpanel" aria-labelledby={activeTab === 'compact' ? 'compact-tab' : 'expenses-tab'} hidden={activeTab === 'net-worth'}>
       <SpendingDashboard
         snapshot={snapshot}
         rangeOptions={rangeOptions}
@@ -527,6 +609,7 @@ export default function App() {
         clearAllSignal={clearAllSignal}
         moduleVisibility={moduleVisibility}
         periodControl={<PeriodControl {...periodProps} />}
+        presentation={activeTab === 'compact' ? 'compact' : 'expenses'}
       />
     </section>
     <section id="net-worth-panel" className="app-tabpanel" role="tabpanel" aria-labelledby="net-worth-tab" hidden={activeTab !== 'net-worth'}>

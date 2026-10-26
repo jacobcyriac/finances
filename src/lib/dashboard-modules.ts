@@ -1,10 +1,14 @@
 export const DASHBOARD_MODULES = [
   { id: 'search', label: 'Search bar' },
   { id: 'summary', label: 'Spending totals' },
+  { id: 'peopleSelector', label: 'People selector' },
+  { id: 'summaryPeople', label: 'People chart in totals' },
   { id: 'people', label: 'People chart' },
   { id: 'categories', label: 'Categories chart' },
+  { id: 'categoryPills', label: 'Selected group categories' },
   { id: 'monthly', label: 'Monthly spend chart' },
   { id: 'drilldown', label: 'Explore spending' },
+  { id: 'transactionsCompact', label: 'Transactions Compact' },
   { id: 'payees', label: 'Top payees' },
   { id: 'transactions', label: 'Transactions' },
 ] as const;
@@ -15,15 +19,49 @@ export type DashboardModuleVisibility = Record<DashboardModuleId, boolean>;
 export const DEFAULT_DASHBOARD_MODULES: DashboardModuleVisibility = {
   search: true,
   summary: true,
+  peopleSelector: true,
+  summaryPeople: true,
   people: true,
   categories: true,
+  categoryPills: true,
   monthly: true,
   drilldown: true,
+  transactionsCompact: true,
   payees: true,
   transactions: true,
 };
 
 const STORAGE_KEY = 'finance-dashboard-modules';
+const TAB_STORAGE_KEY = 'finance-dashboard-modules-by-tab';
+
+export type DashboardViewTab = 'expenses' | 'compact';
+export type DashboardModuleVisibilityByTab = Record<DashboardViewTab, DashboardModuleVisibility>;
+
+export function loadDashboardModulesByTab(): DashboardModuleVisibilityByTab {
+  try {
+    const savedByTab = localStorage.getItem(TAB_STORAGE_KEY);
+    if (savedByTab) {
+      const parsed = JSON.parse(savedByTab) as Partial<Record<DashboardViewTab, Partial<DashboardModuleVisibility>>>;
+      const normalize = (value?: Partial<DashboardModuleVisibility>) => Object.fromEntries(
+        DASHBOARD_MODULES.map(({ id }) => [id, value?.[id] !== false]),
+      ) as DashboardModuleVisibility;
+      return { expenses: normalize(parsed.expenses), compact: normalize(parsed.compact) };
+    }
+
+    // Preserve existing users' Expenses settings; Compact starts with all modules shown.
+    return { expenses: loadDashboardModules(), compact: { ...DEFAULT_DASHBOARD_MODULES } };
+  } catch {
+    return { expenses: { ...DEFAULT_DASHBOARD_MODULES }, compact: { ...DEFAULT_DASHBOARD_MODULES } };
+  }
+}
+
+export function saveDashboardModulesByTab(modules: DashboardModuleVisibilityByTab) {
+  try {
+    localStorage.setItem(TAB_STORAGE_KEY, JSON.stringify(modules));
+  } catch {
+    /* Storage can be unavailable in restricted browser contexts. */
+  }
+}
 
 export function loadDashboardModules(): DashboardModuleVisibility {
   try {

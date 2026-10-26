@@ -25,6 +25,12 @@ export function formatMoney(minor: number, currency: CurrencyFormat): string {
   return minor < 0 ? `-${body}` : body;
 }
 
+/** Format integer minor units as whole currency units, without decimal places. */
+export function formatMoneyWhole(minor: number, currency: CurrencyFormat): string {
+  const body = withSymbol(WHOLE.format(Math.round(Math.abs(minor) / 100)), currency);
+  return minor < 0 ? `-${body}` : body;
+}
+
 /** Compact format for axis labels, e.g. €1.2M, €340K. */
 export function formatCompact(minor: number, currency: CurrencyFormat, maximumFractionDigits = 1): string {
   const absolute = Math.abs(minor);

@@ -74,7 +74,6 @@ export function ProjectionChart({ data, lines, currency, height = 240 }: Props) 
               value: `${l.label} ${formatCompact(l.value, currency)}`,
               position: 'insideTopRight',
               fill: l.color,
-              fontSize: 11,
             }}
           />
         ))}

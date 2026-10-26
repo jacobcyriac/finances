@@ -35,8 +35,8 @@ export function CashflowBars({ data, currency, height = 240 }: Props) {
         <XAxis dataKey="month" tickFormatter={monthLabel} tickLine={false} axisLine={false} minTickGap={28} />
         <YAxis width={52} tickFormatter={(v) => formatCompact(v, currency)} tickLine={false} axisLine={false} />
         <Tooltip content={<Tip />} cursor={{ fill: 'var(--chart-cursor)' }} />
-        <Bar dataKey="Income" fill={POS} radius={[3, 3, 0, 0]} maxBarSize={22} />
-        <Bar dataKey="Expense" fill={NEG} radius={[0, 0, 3, 3]} maxBarSize={22} />
+        <Bar dataKey="Income" fill={POS} radius={[3, 3, 0, 0]} maxBarSize={22} minPointSize={1} />
+        <Bar dataKey="Expense" fill={NEG} radius={[0, 0, 3, 3]} maxBarSize={22} minPointSize={1} />
         <Line type="monotone" dataKey="Net" stroke={BRAND_BRIGHT} strokeWidth={2} dot={false} />
       </ComposedChart>
     </ResponsiveContainer>
